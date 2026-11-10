@@ -3,8 +3,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="clr-namespace:VGNOrb.App.Controls"
         Title="VGN Orb"
-        Width="300"
-        Height="100"
+        Width="320"
+        Height="116"
         WindowStyle="None"
         AllowsTransparency="True"
         Background="Transparent"
@@ -42,14 +42,27 @@
             <Setter Property="Foreground" Value="#FFFFFF" />
             <Setter Property="FontFamily" Value="GeosansLight, Segoe UI" />
             <Setter Property="FontWeight" Value="Normal" />
+            <Setter Property="FontSize" Value="34" />
             <Setter Property="TextAlignment" Value="Right" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding BatteryText}" Value="100%">
+                    <Setter Property="FontSize" Value="30" />
+                </DataTrigger>
+            </Style.Triggers>
         </Style>
     </Window.Resources>
 
     <Grid x:Name="HudRoot" Background="Transparent" Opacity="0">
-        <Border Width="300" CornerRadius="0,0,0,30" Background="#000000"
+        <Border x:Name="HudCard"
+                Width="300"
+                Height="100"
+                CornerRadius="0,0,0,30"
+                Background="#000000"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Top"
+                ClipToBounds="True"
                 RenderOptions.ClearTypeHint="Enabled">
-            <Grid>
+            <Grid x:Name="HudContent" Opacity="0">
                 <!-- Single device: exact 300x100 layout from the MCP "单设备" group. -->
                 <Canvas Width="300" Height="100"
                         Visibility="{Binding DataContext.IsSingleDevice, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BooleanToVisibilityConverter}}"
@@ -77,12 +90,11 @@
                                Style="{StaticResource HudIdentifyStyle}"
                                FontSize="15" />
 
-                    <TextBlock Canvas.Left="207"
+                    <TextBlock Canvas.Left="205"
                                Canvas.Top="41"
-                               Width="62"
+                               Width="70"
                                Text="{Binding BatteryText}"
-                               Style="{StaticResource HudPercentStyle}"
-                               FontSize="34" />
+                               Style="{StaticResource HudPercentStyle}" />
                 </Canvas>
 
                 <!-- Two devices: exact 300x200 layout from the MCP "单设备" 9-child group. -->
@@ -115,13 +127,12 @@
                                Text="{Binding IdentifyText}"
                                Style="{StaticResource HudIdentifyStyle}"
                                FontSize="15" />
-                    <TextBlock Canvas.Left="207"
+                    <TextBlock Canvas.Left="205"
                                Canvas.Top="41"
-                               Width="62"
+                               Width="70"
                                DataContext="{Binding PrimaryDevice}"
                                Text="{Binding BatteryText}"
-                               Style="{StaticResource HudPercentStyle}"
-                               FontSize="34" />
+                               Style="{StaticResource HudPercentStyle}" />
 
                     <Grid Canvas.Left="12" Canvas.Top="106" Width="80" Height="80"
                           DataContext="{Binding SecondaryDevice}">
@@ -146,13 +157,12 @@
                                Text="{Binding IdentifyText}"
                                Style="{StaticResource HudIdentifyStyle}"
                                FontSize="15" />
-                    <TextBlock Canvas.Left="207"
+                    <TextBlock Canvas.Left="205"
                                Canvas.Top="134"
-                               Width="62"
+                               Width="70"
                                DataContext="{Binding SecondaryDevice}"
                                Text="{Binding BatteryText}"
-                               Style="{StaticResource HudPercentStyle}"
-                               FontSize="34" />
+                               Style="{StaticResource HudPercentStyle}" />
                 </Canvas>
 
                 <!-- Empty state -->
@@ -182,18 +192,5 @@
         </Border>
     </Grid>
 
-    <Window.Triggers>
-        <EventTrigger RoutedEvent="Window.Loaded">
-            <BeginStoryboard>
-                <Storyboard>
-                    <DoubleAnimation Storyboard.TargetName="HudRoot"
-                                     Storyboard.TargetProperty="Opacity"
-                                     From="0"
-                                     To="1"
-                                     Duration="0:0:0.16" />
-                </Storyboard>
-            </BeginStoryboard>
-        </EventTrigger>
-    </Window.Triggers>
 </Window>
 

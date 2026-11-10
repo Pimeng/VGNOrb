@@ -20,6 +20,7 @@ public sealed class DeviceHudController : IDisposable
     private const int WsExTransparent = 0x00000020;
     private const int WsExToolWindow = 0x00000080;
     private const int WsExNoActivate = 0x08000000;
+    private const double HudWindowBottomPadding = 16;
     private static readonly TimeSpan HideDelay = TimeSpan.FromMilliseconds(350);
 
     private readonly OrbViewModel _viewModel;
@@ -27,6 +28,7 @@ public sealed class DeviceHudController : IDisposable
     private readonly HotCornerWindow _hotCorner;
     private readonly DispatcherTimer _pollTimer;
     private DateTime? _hideAt;
+    private bool _isHiding;
     private bool _disposed;
 
     public DeviceHudController(OrbViewModel viewModel)
@@ -44,7 +46,7 @@ public sealed class DeviceHudController : IDisposable
         };
         _pollTimer.Tick += OnPollTimerTick;
         _viewModel.Devices.CollectionChanged += OnDevicesCollectionChanged;
-        _hud.Height = _viewModel.HudHeight;
+        _hud.Height = _viewModel.HudHeight + HudWindowBottomPadding;
     }
 
     public void Start()
@@ -58,6 +60,7 @@ public sealed class DeviceHudController : IDisposable
         _hud.Show();
         _hud.Hide();
         _hud.Opacity = 1;
+        _hud.ResetAnimationState();
 
         _hotCorner.Show();
         PositionWindows();
@@ -77,13 +80,14 @@ public sealed class DeviceHudController : IDisposable
         _pollTimer.Stop();
         _pollTimer.Tick -= OnPollTimerTick;
         _viewModel.Devices.CollectionChanged -= OnDevicesCollectionChanged;
+        _hud.StopAnimation();
         _hud.Close();
         _hotCorner.Close();
     }
 
     private void OnDevicesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
-        _hud.Height = _viewModel.HudHeight;
+        _hud.Height = _viewModel.HudHeight + HudWindowBottomPadding;
         PositionWindows();
     }
 
@@ -98,16 +102,22 @@ public sealed class DeviceHudController : IDisposable
         if (overHot || overHud)
         {
             _hideAt = null;
-            if (!_hud.IsVisible && overHot)
+
+            if (_isHiding)
             {
-                PositionWindows();
-                _hud.Show();
+                _isHiding = false;
+                _hud.StopAnimation();
+                _hud.PlayShowAnimation();
+            }
+            else if (!_hud.IsVisible && overHot)
+            {
+                ShowHud();
             }
 
             return;
         }
 
-        if (!_hud.IsVisible)
+        if (!_hud.IsVisible || _isHiding)
         {
             _hideAt = null;
             return;
@@ -116,9 +126,37 @@ public sealed class DeviceHudController : IDisposable
         _hideAt ??= DateTime.UtcNow + HideDelay;
         if (DateTime.UtcNow >= _hideAt)
         {
-            _hud.Hide();
             _hideAt = null;
+            BeginHide();
         }
+    }
+
+    private void ShowHud()
+    {
+        PositionWindows();
+        _hud.Show();
+        _hud.PlayShowAnimation();
+    }
+
+    private void BeginHide()
+    {
+        if (!_hud.IsVisible || _isHiding)
+        {
+            return;
+        }
+
+        _isHiding = true;
+        _hud.PlayHideAnimation(() =>
+        {
+            if (!_isHiding)
+            {
+                return;
+            }
+
+            _isHiding = false;
+            _hud.Hide();
+            _hud.ResetAnimationState();
+        });
     }
 
     private void PositionWindows()
