@@ -30,7 +30,7 @@ public partial class DeviceTileViewModel : ObservableObject, IAsyncDisposable
             TimeSpan.FromMilliseconds(pollIntervalMilliseconds));
 
         DeviceName = descriptor.DisplayName;
-        ShortName = BuildShortName(descriptor);
+        HudName = BuildHudName(descriptor);
         DeviceDetails = "等待连接 · USB HID";
         ConnectionText = "连接中…";
         StatusText = "正在连接设备…";
@@ -45,7 +45,7 @@ public partial class DeviceTileViewModel : ObservableObject, IAsyncDisposable
 
     public DeviceKind Kind => Descriptor.Kind;
 
-    public string ShortName { get; }
+    public string HudName { get; }
 
     public string KindLabel => Kind switch
     {
@@ -53,6 +53,14 @@ public partial class DeviceTileViewModel : ObservableObject, IAsyncDisposable
         DeviceKind.Keyboard => "键盘",
         DeviceKind.Simulated => "模拟设备",
         _ => "设备"
+    };
+
+    public string IdentifyText => Kind switch
+    {
+        DeviceKind.Mouse => "Identify: Mouse",
+        DeviceKind.Keyboard => "Identify: Keyboard",
+        DeviceKind.Simulated => "Identify: Simulated",
+        _ => "Identify: Device"
     };
 
     public bool IsSimulated => Kind == DeviceKind.Simulated;
@@ -344,27 +352,26 @@ public partial class DeviceTileViewModel : ObservableObject, IAsyncDisposable
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
     }
 
-    private static string BuildShortName(DeviceDescriptor descriptor)
+    private static string BuildHudName(DeviceDescriptor descriptor)
     {
         if (descriptor.Kind == DeviceKind.Simulated)
         {
-            return "模拟";
+            return "VGN Orb";
         }
 
         if (descriptor.DisplayName.Contains("F1 SE", StringComparison.OrdinalIgnoreCase))
         {
-            return "F1 SE";
+            return "VGN F1 SE";
         }
 
         if (descriptor.DisplayName.Contains("V98Pro", StringComparison.OrdinalIgnoreCase))
         {
-            return "V98Pro";
+            return descriptor.DisplayName.Contains("TIMI", StringComparison.OrdinalIgnoreCase)
+                ? "VGN V98Pro V4 TIMI"
+                : "VGN V98Pro V4";
         }
 
-        var trimmed = descriptor.DisplayName.StartsWith("VGN ", StringComparison.OrdinalIgnoreCase)
-            ? descriptor.DisplayName[4..]
-            : descriptor.DisplayName;
-        return trimmed.Length <= 10 ? trimmed : trimmed[..10].TrimEnd();
+        return descriptor.DisplayName;
     }
 
     private static string BuildParameterText(IReadOnlyDictionary<string, string> parameters)

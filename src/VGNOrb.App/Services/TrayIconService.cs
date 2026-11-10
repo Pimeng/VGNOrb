@@ -2,17 +2,15 @@ using System.ComponentModel;
 using System.Drawing;
 using System.Windows.Forms;
 using VGNOrb.App.ViewModels;
-using VGNOrb.App.Views;
 
 namespace VGNOrb.App.Services;
 
 /// <summary>
-/// Owns only operating-system tray integration. Multi-device state and commands
-/// remain in the view model.
+/// Owns operating-system tray integration. The HUD itself is hover-driven and
+/// does not need to be toggled from this menu.
 /// </summary>
 public sealed class TrayIconService : IDisposable
 {
-    private readonly OrbWindow _window;
     private readonly OrbViewModel _viewModel;
     private readonly Action _exit;
     private readonly NotifyIcon _notifyIcon;
@@ -23,23 +21,21 @@ public sealed class TrayIconService : IDisposable
     private readonly ToolStripMenuItem _refreshAllItem;
     private readonly ToolStripMenuItem _reconnectAllItem;
     private readonly ToolStripMenuItem _disconnectAllItem;
-    private readonly ToolStripMenuItem _toggleWindowItem;
     private readonly ToolStripMenuItem _alwaysOnTopItem;
     private readonly Icon _icon;
     private readonly bool _ownsIcon;
-    private readonly List<DeviceTileViewModel> _observedTiles = [];
+    private readonly List<DeviceTileViewModel> _observedDevices = [];
     private bool _disposed;
 
-    public TrayIconService(OrbWindow window, OrbViewModel viewModel, Action exit)
+    public TrayIconService(OrbViewModel viewModel, Action exit)
     {
-        _window = window ?? throw new ArgumentNullException(nameof(window));
         _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
         _exit = exit ?? throw new ArgumentNullException(nameof(exit));
 
         (_icon, _ownsIcon) = LoadIcon();
 
         _summaryItem = new ToolStripMenuItem { Enabled = false };
-        _devicesMenu = new ToolStripMenuItem("设备 (0/6)") { Enabled = false };
+        _devicesMenu = new ToolStripMenuItem("设备 (0/2)") { Enabled = false };
         _deviceStatusItems = Enumerable.Range(0, OrbViewModel.MaxDevices)
             .Select(_ => new ToolStripMenuItem { Enabled = false, Visible = false })
             .ToArray();
@@ -48,14 +44,12 @@ public sealed class TrayIconService : IDisposable
         _refreshAllItem = new ToolStripMenuItem("刷新全部电量");
         _reconnectAllItem = new ToolStripMenuItem("重新发现并连接");
         _disconnectAllItem = new ToolStripMenuItem("断开全部设备");
-        _toggleWindowItem = new ToolStripMenuItem("隐藏悬浮球");
         _alwaysOnTopItem = new ToolStripMenuItem("始终置顶") { CheckOnClick = false };
         var exitItem = new ToolStripMenuItem("退出 VGN Orb");
 
         _refreshAllItem.Click += (_, _) => _viewModel.RefreshAllCommand.Execute(null);
         _reconnectAllItem.Click += (_, _) => _viewModel.ReconnectAllCommand.Execute(null);
         _disconnectAllItem.Click += (_, _) => _viewModel.DisconnectAllCommand.Execute(null);
-        _toggleWindowItem.Click += (_, _) => ToggleWindow();
         _alwaysOnTopItem.Click += (_, _) => _viewModel.AlwaysOnTop = !_viewModel.AlwaysOnTop;
         exitItem.Click += (_, _) => _exit();
 
@@ -73,7 +67,6 @@ public sealed class TrayIconService : IDisposable
             _reconnectAllItem,
             _disconnectAllItem,
             new ToolStripSeparator(),
-            _toggleWindowItem,
             _alwaysOnTopItem,
             new ToolStripSeparator(),
             exitItem
@@ -87,11 +80,10 @@ public sealed class TrayIconService : IDisposable
             Visible = true,
             ContextMenuStrip = _contextMenu
         };
-        _notifyIcon.DoubleClick += (_, _) => ToggleWindow();
 
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
         _viewModel.Devices.CollectionChanged += OnDevicesCollectionChanged;
-        SyncTileSubscriptions();
+        SyncDeviceSubscriptions();
         RefreshState();
     }
 
@@ -105,7 +97,7 @@ public sealed class TrayIconService : IDisposable
         _disposed = true;
         _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
         _viewModel.Devices.CollectionChanged -= OnDevicesCollectionChanged;
-        UnsubscribeFromTiles();
+        UnsubscribeFromDevices();
         _notifyIcon.Visible = false;
         _notifyIcon.Dispose();
         _contextMenu.Dispose();
@@ -116,54 +108,42 @@ public sealed class TrayIconService : IDisposable
         }
     }
 
-    private void ToggleWindow()
-    {
-        if (_window.IsVisible)
-        {
-            _window.Hide();
-        }
-        else
-        {
-            _window.Show();
-        }
-
-        RefreshState();
-    }
-
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         RefreshState();
     }
 
-    private void OnDevicesCollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+    private void OnDevicesCollectionChanged(
+        object? sender,
+        System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
     {
-        SyncTileSubscriptions();
+        SyncDeviceSubscriptions();
         RefreshState();
     }
 
-    private void OnTilePropertyChanged(object? sender, PropertyChangedEventArgs e)
+    private void OnDevicePropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         RefreshState();
     }
 
-    private void SyncTileSubscriptions()
+    private void SyncDeviceSubscriptions()
     {
-        UnsubscribeFromTiles();
-        foreach (var tile in _viewModel.Devices)
+        UnsubscribeFromDevices();
+        foreach (var device in _viewModel.Devices)
         {
-            tile.PropertyChanged += OnTilePropertyChanged;
-            _observedTiles.Add(tile);
+            device.PropertyChanged += OnDevicePropertyChanged;
+            _observedDevices.Add(device);
         }
     }
 
-    private void UnsubscribeFromTiles()
+    private void UnsubscribeFromDevices()
     {
-        foreach (var tile in _observedTiles)
+        foreach (var device in _observedDevices)
         {
-            tile.PropertyChanged -= OnTilePropertyChanged;
+            device.PropertyChanged -= OnDevicePropertyChanged;
         }
 
-        _observedTiles.Clear();
+        _observedDevices.Clear();
     }
 
     private void RefreshState()
@@ -173,7 +153,6 @@ public sealed class TrayIconService : IDisposable
             return;
         }
 
-        var visible = _window.IsVisible;
         var text = $"VGN Orb · {_viewModel.TraySummary}";
         _notifyIcon.Text = text.Length <= 63 ? text : text[..62] + "…";
         _summaryItem.Text = _viewModel.TraySummary;
@@ -190,16 +169,15 @@ public sealed class TrayIconService : IDisposable
                 continue;
             }
 
-            var tile = devices[index];
+            var device = devices[index];
             item.Visible = true;
-            item.Text = $"{tile.KindLabel} · {tile.DeviceName} · {tile.BatteryText}";
-            item.ToolTipText = tile.StatusText;
+            item.Text = $"{device.KindLabel} · {device.DeviceName} · {device.BatteryText}";
+            item.ToolTipText = device.StatusText;
         }
 
         _refreshAllItem.Enabled = _viewModel.RefreshAllCommand.CanExecute(null);
         _reconnectAllItem.Enabled = _viewModel.ReconnectAllCommand.CanExecute(null);
         _disconnectAllItem.Enabled = _viewModel.DisconnectAllCommand.CanExecute(null);
-        _toggleWindowItem.Text = visible ? "隐藏悬浮球" : "显示悬浮球";
         _alwaysOnTopItem.Checked = _viewModel.AlwaysOnTop;
     }
 

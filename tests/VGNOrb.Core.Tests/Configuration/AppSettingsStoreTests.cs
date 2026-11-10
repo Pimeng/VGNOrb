@@ -15,12 +15,8 @@ public sealed class AppSettingsStoreTests
             var settings = new AppSettings
             {
                 AlwaysOnTop = false,
-                ShowOrbOnStartup = false,
                 AutoConnectDevice = false,
                 PreferHardware = false,
-                OrbSize = 144,
-                OrbLeft = 321.5,
-                OrbTop = 123.25,
                 PollIntervalMilliseconds = 7500
             };
 
@@ -63,18 +59,13 @@ public sealed class AppSettingsStoreTests
     {
         var settings = new AppSettings
         {
-            OrbSize = 1,
-            PollIntervalMilliseconds = 5,
-            OrbLeft = double.NaN,
-            OrbTop = 100
+            PollIntervalMilliseconds = 5
         };
 
         var normalized = settings.Normalize();
 
-        Assert.Equal(72, normalized.OrbSize);
         Assert.Equal(1000, normalized.PollIntervalMilliseconds);
-        Assert.Null(normalized.OrbLeft);
-        Assert.Equal(100, normalized.OrbTop);
+        Assert.True(normalized.AlwaysOnTop);
     }
 
     private static string CreateTemporaryDirectory()

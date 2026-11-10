@@ -8,12 +8,12 @@ using VGNOrb.Core.Devices;
 namespace VGNOrb.App.ViewModels;
 
 /// <summary>
-/// Owns the multi-device session: discovery, up to six independent device tiles,
+/// Owns the multi-device session: discovery, up to two independent device rows,
 /// reconnect/refresh-all commands, and the overall tray status.
 /// </summary>
 public partial class OrbViewModel : ObservableObject, IAsyncDisposable
 {
-    public const int MaxDevices = 6;
+    public const int MaxDevices = 2;
 
     private readonly IDeviceDiscoveryService _discovery;
     private readonly Dispatcher _dispatcher;
@@ -46,12 +46,19 @@ public partial class OrbViewModel : ObservableObject, IAsyncDisposable
     private bool _alwaysOnTop = true;
 
     [ObservableProperty]
-    private double _tileSize = 116;
-
-    [ObservableProperty]
     private string _statusText = "准备就绪";
 
+    public DeviceTileViewModel? PrimaryDevice => Devices.Count > 0 ? Devices[0] : null;
+
+    public DeviceTileViewModel? SecondaryDevice => Devices.Count > 1 ? Devices[1] : null;
+
     public bool HasDevices => Devices.Count > 0;
+
+    public bool IsSingleDevice => Devices.Count == 1;
+
+    public bool IsDualDevice => Devices.Count >= 2;
+
+    public double HudHeight => IsDualDevice ? 200 : 100;
 
     public int ConnectedDeviceCount => Devices.Count(device => device.IsConnected);
 
@@ -252,7 +259,12 @@ public partial class OrbViewModel : ObservableObject, IAsyncDisposable
 
     private void NotifyCollectionStateChanged()
     {
+        OnPropertyChanged(nameof(PrimaryDevice));
+        OnPropertyChanged(nameof(SecondaryDevice));
         OnPropertyChanged(nameof(HasDevices));
+        OnPropertyChanged(nameof(IsSingleDevice));
+        OnPropertyChanged(nameof(IsDualDevice));
+        OnPropertyChanged(nameof(HudHeight));
         OnPropertyChanged(nameof(DeviceCountText));
         OnPropertyChanged(nameof(ConnectedDeviceCount));
         OnPropertyChanged(nameof(TraySummary));
