@@ -1,0 +1,206 @@
+<UserControl x:Class="VGNOrb.App.Views.DeviceTile"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:VGNOrb.App.Controls"
+             Background="Transparent"
+             UseLayoutRounding="True"
+             SnapsToDevicePixels="True"
+             TextOptions.TextFormattingMode="Display"
+             TextOptions.TextRenderingMode="Grayscale">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+
+        <RadialGradientBrush x:Key="OrbBodyBrush" Center="0.42,0.32" GradientOrigin="0.35,0.22" RadiusX="0.8" RadiusY="0.8">
+            <GradientStop Color="#2A4261" Offset="0" />
+            <GradientStop Color="#14243B" Offset="0.46" />
+            <GradientStop Color="#070C16" Offset="1" />
+        </RadialGradientBrush>
+
+        <LinearGradientBrush x:Key="OrbRimBrush" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#D3FAFF" Offset="0" />
+            <GradientStop Color="#51C8FF" Offset="0.38" />
+            <GradientStop Color="#4C6FFF" Offset="0.72" />
+            <GradientStop Color="#2D4CB8" Offset="1" />
+        </LinearGradientBrush>
+
+        <LinearGradientBrush x:Key="BatteryProgressBrush" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#4AF0FF" Offset="0" />
+            <GradientStop Color="#5AC8FF" Offset="0.38" />
+            <GradientStop Color="#7C8DFF" Offset="0.72" />
+            <GradientStop Color="#B77DFF" Offset="1" />
+        </LinearGradientBrush>
+
+        <LinearGradientBrush x:Key="HighlightBrush" StartPoint="0,0" EndPoint="0.8,1">
+            <GradientStop Color="#35FFFFFF" Offset="0" />
+            <GradientStop Color="#0AFFFFFF" Offset="0.5" />
+            <GradientStop Color="#00FFFFFF" Offset="1" />
+        </LinearGradientBrush>
+
+        <Style x:Key="OrbBatteryTextStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#F1FBFF" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsConnected}" Value="False">
+                    <Setter Property="Foreground" Value="#72869C" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
+
+    <Viewbox Stretch="Uniform">
+        <Grid x:Name="OrbRoot" Width="120" Height="120" Background="Transparent">
+            <Grid.ToolTip>
+                <ToolTip Background="#F20A1421"
+                         BorderBrush="#3D6A8C"
+                         BorderThickness="1"
+                         Padding="0"
+                         HasDropShadow="True"
+                         Placement="Top"
+                         FontFamily="{StaticResource AppFont}">
+                    <StackPanel Width="252" Margin="14,12">
+                        <TextBlock Text="{Binding DeviceName}"
+                                   Foreground="#F1FBFF"
+                                   FontSize="13"
+                                   FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding DeviceDetails}"
+                                   Foreground="#8EB4CE"
+                                   FontSize="10"
+                                   Margin="0,3,0,0" />
+                        <Border Height="1" Background="#28445E" Margin="0,10" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Text="状态" Foreground="#6F8CA4" FontSize="10" Margin="0,0,18,5" />
+                            <TextBlock Grid.Column="1" Text="{Binding ConnectionText}" Foreground="#C9EAFF" FontSize="10" Margin="0,0,0,5" />
+
+                            <TextBlock Grid.Row="1" Text="电池" Foreground="#6F8CA4" FontSize="10" Margin="0,0,18,5" />
+                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding BatteryDetailedText}" Foreground="#C9EAFF" FontSize="10" Margin="0,0,0,5" />
+
+                            <TextBlock Grid.Row="2" Text="配置" Foreground="#6F8CA4" FontSize="10" Margin="0,0,18,5" />
+                            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding ParameterText}" Foreground="#C9EAFF" FontSize="10" Margin="0,0,0,5" />
+
+                            <TextBlock Grid.Row="3" Text="更新" Foreground="#6F8CA4" FontSize="10" Margin="0,0,18,0" />
+                            <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding LastUpdatedText}" Foreground="#C9EAFF" FontSize="10" />
+                        </Grid>
+                        <TextBlock Text="{Binding StatusText}"
+                                   Foreground="#7EA4BE"
+                                   FontSize="9.5"
+                                   TextWrapping="Wrap"
+                                   Margin="0,9,0,0" />
+                        <TextBlock Text="右键打开菜单"
+                                   Foreground="#52758E"
+                                   FontSize="9"
+                                   Margin="0,8,0,0" />
+                    </StackPanel>
+                </ToolTip>
+            </Grid.ToolTip>
+
+            <Ellipse Width="118" Height="118">
+                <Ellipse.Fill>
+                    <RadialGradientBrush Center="0.5,0.5" GradientOrigin="0.5,0.5" RadiusX="0.5" RadiusY="0.5">
+                        <GradientStop Color="#303EDCFF" Offset="0.58" />
+                        <GradientStop Color="#0D3EDCFF" Offset="0.82" />
+                        <GradientStop Color="#003EDCFF" Offset="1" />
+                    </RadialGradientBrush>
+                </Ellipse.Fill>
+            </Ellipse>
+
+            <Ellipse Width="110" Height="110" Fill="{StaticResource OrbBodyBrush}">
+                <Ellipse.Effect>
+                    <DropShadowEffect Color="#35D8FF" BlurRadius="16" ShadowDepth="0" Opacity="0.48" />
+                </Ellipse.Effect>
+            </Ellipse>
+
+            <Ellipse Width="110" Height="110"
+                     Stroke="{StaticResource OrbRimBrush}"
+                     StrokeThickness="1.25" />
+
+            <Ellipse Width="104" Height="104" Stroke="#16FFFFFF" StrokeThickness="0.8" />
+
+            <Ellipse Width="76" Height="58"
+                     HorizontalAlignment="Center"
+                     VerticalAlignment="Top"
+                     Margin="0,13,0,0"
+                     Fill="{StaticResource HighlightBrush}"
+                     Opacity="0.42">
+                <Ellipse.RenderTransform>
+                    <RotateTransform Angle="-12" CenterX="38" CenterY="29" />
+                </Ellipse.RenderTransform>
+            </Ellipse>
+
+            <controls:BatteryRing Width="94"
+                                  Height="94"
+                                  Value="{Binding BatteryPercent}"
+                                  TrackBrush="#18FFFFFF"
+                                  ProgressBrush="{StaticResource BatteryProgressBrush}"
+                                  StrokeThickness="3.2" />
+
+            <TextBlock Text="{Binding ShortName}"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Top"
+                       Margin="0,27,0,0"
+                       FontSize="6.8"
+                       FontWeight="SemiBold"
+                       Foreground="#78A9C5" />
+
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,4,0,0">
+                <TextBlock Text="{Binding BatteryText}"
+                           HorizontalAlignment="Center"
+                           FontFamily="Bahnschrift SemiBold, Segoe UI, Microsoft YaHei UI"
+                           FontSize="22"
+                           FontWeight="SemiBold"
+                           Style="{StaticResource OrbBatteryTextStyle}" />
+                <TextBlock Text="{Binding KindLabel}"
+                           HorizontalAlignment="Center"
+                           Margin="0,-1,0,0"
+                           FontSize="7.3"
+                           Foreground="#88AEC5" />
+            </StackPanel>
+
+            <Border Width="17"
+                    Height="17"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Top"
+                    Margin="0,22,21,0"
+                    CornerRadius="8.5"
+                    Background="#FFC857"
+                    BorderBrush="#FFE7A8"
+                    BorderThickness="0.8"
+                    Visibility="{Binding IsCharging, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <Path Data="M 0,5 L 4,0 L 3.3,3.7 L 6,3.7 L 1.8,8.3 L 2.6,4.7 Z"
+                      Fill="#1A2433"
+                      Stretch="Uniform"
+                      Width="7"
+                      Height="8"
+                      HorizontalAlignment="Center"
+                      VerticalAlignment="Center" />
+            </Border>
+
+            <Ellipse Width="4.2"
+                     Height="4.2"
+                     HorizontalAlignment="Center"
+                     VerticalAlignment="Bottom"
+                     Margin="0,0,0,13"
+                     Fill="#42E8C4">
+                <Ellipse.Style>
+                    <Style TargetType="Ellipse">
+                        <Setter Property="Opacity" Value="1" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsConnected}" Value="False">
+                                <Setter Property="Opacity" Value="0.24" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Ellipse.Style>
+            </Ellipse>
+        </Grid>
+    </Viewbox>
+</UserControl>
