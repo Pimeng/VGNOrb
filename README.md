@@ -84,7 +84,7 @@ VGN Orb 是一个常驻系统托盘的 Windows 小工具。鼠标移动到屏幕
 
 从源码构建：
 
-    git clone <repository-url>
+    git clone https://github.com/Pimeng/VGNOrb.git
     cd VGNOrb
     dotnet restore VGNOrb.sln
     dotnet build VGNOrb.sln -c Release
@@ -220,3 +220,4 @@ VGN Orb 是非官方项目，与 VGN 官方无关联。VGN 及相关产品名称
 - [HidSharp](https://github.com/IntergatedCircuits/HidSharp) — HID 传输
 - [CommunityToolkit.Mvvm](https://github.com/CommunityToolkit/dotnet) — MVVM
 - [GeoSansLight](https://www.dafont.com/geo-sans-light.font) — Manfred Klein
+
