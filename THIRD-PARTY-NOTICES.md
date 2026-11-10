@@ -30,4 +30,17 @@ license files are available from the corresponding NuGet packages.
 
 The HUD prefers a locally installed GeoSansLight font and falls back to
 Segoe UI. The font file is **not distributed with this repository** or its
-release artifacts. See the font-license note in [README.md](README.md#geosanslight).
+release artifacts.
+
+GeoSansLight was created by Manfred Klein. A reproduced copy of the terms is
+available in the [Makespace/Branding license](https://github.com/Makespace/Branding/blob/master/LICENSE.md):
+
+> Manfred’s fonts are free for private and charity use. They are even free for
+> commercial use – but if there’s any profit, pls make a donation to
+> organizations like Doctors Without Borders.
+>
+> These fonts can NOT be included in any compilation CDs, disks or products,
+> either commercial or shareware unless prior permission granted.
+
+Do not bundle the font files in a release without prior permission. See the
+font-license note in [README.md](README.md#fonts).
