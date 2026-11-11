@@ -264,14 +264,75 @@ The C# implementation is in
 [`VgnKeyboardProtocol.cs`](../src/VGNOrb.Devices.Vgn/VgnKeyboardProtocol.cs) and
 [`VgnKeyboardDevice.cs`](../src/VGNOrb.Devices.Vgn/VgnKeyboardDevice.cs).
 
+## Additional families mapped from VGN VHUB 4.0.11 (not hardware-verified)
+
+The desktop VHUB installer (`resources/app.asar`) contains a static device
+table (156 entries, 143 unique VID/PID pairs) and a dispatch tree that assigns
+each entry to a protocol service class. The read-only battery paths below were
+mapped from that code. Until captured hardware frames confirm them, the C#
+adapters are marked "not yet validated" in their doc comments.
+
+### BYTECH keyboard whitelist extension
+
+The "bykeyboard" table entries share the V98Pro V4 transport
+(`0x391D`, usage page `0xFF60`, usage `0x61`):
+
+| Model | Wired PID | Dongle PID |
+| --- | --- | --- |
+| V98Pro V4 8K (validated) | `0x200B` | `0x2A03` |
+| V98Pro V4 8K TIMI | `0x201C` | `0x2A0A` |
+| V98Pro V4 1K | `0x200C` | `0x2A04` |
+| V87Pro V2 | `0x2015` | `0x2A06` |
+| V108Pro | `0x2018` | `0x2A08` |
+
+### Weisheng keyboards (`WsServe`, report ID 4)
+
+- VID `0x320F` PIDs `0x5055` (wired) / `0x5088` (dongle): S99, V98pro,
+  V98pro V2, N75 PRO, VXE75, VXE75 V2, VXE V87.
+- VID `0x373B` PIDs `0x1028` / `0x1029`: S87.
+- Battery query payload: `00 00 1A 06 00 00 00`. The answer echoes command
+  `0x1A` at payload offset 2; level is at payload offset 7, charging flag
+  (non-zero) at offset 8. Raw HidSharp reports include the report ID byte in
+  front, shifting all offsets by one.
+
+### Yongjiaxin mice (`YjxServe`, no report ID)
+
+- VID `0x391D` PIDs `0x1001/0x1A01, 0x1003/0x1A03, 0x100A/0x1A09, 0x100B/0x1A0A,
+  0x1017/0x1A14, 0x1019/0x1A16, 0x1018/0x1A15` (wired/dongle pairs) and VID
+  `0x3837` PID `0x4042`: Dragonfly3 SE/Pro, Y2 V2 Pro/Plus, F1 V2 Pro/SE/Plus.
+- Collection: usage page `0xFF01`, usage `0x10`, 64-byte payloads.
+- Battery query payload: `55 30` followed by zeros. The answer echoes `0x30` at
+  payload offset 1; level is at payload offset 8; offset 9 is the wired flag
+  (`1` = wired, displayed as charging).
+
+### YJX keyboards (`YixKeyboardServe`, report ID 0xF0)
+
+- VGN N87: wired `0xA8A4:0x2355`, dongle `0xA8A5:0x2255`; usage page `0xFF01`,
+  usage `0x10`.
+- 63-byte frames: command, device type (`0x02` = keyboard), checksum (low byte
+  of the sum of frame bytes 3..62), data length, little-endian address, frame
+  profile, then 56 data bytes. Requests leave the checksum byte at 0.
+- Battery command `0x30` with data length 2; answer data byte 0 = level (the
+  driver rejects values above 100), byte 1 = wired status (`1` = wired,
+  displayed as charging).
+
+The C# implementations are in
+[`VgnWsKeyboardProtocol.cs`](../src/VGNOrb.Devices.Vgn/VgnWsKeyboardProtocol.cs),
+[`VgnYjxMouseProtocol.cs`](../src/VGNOrb.Devices.Vgn/VgnYjxMouseProtocol.cs) and
+[`VgnYjxKeyboardProtocol.cs`](../src/VGNOrb.Devices.Vgn/VgnYjxKeyboardProtocol.cs);
+the three device adapters share
+[`VgnProtocolDeviceBase.cs`](../src/VGNOrb.Devices.Vgn/VgnProtocolDeviceBase.cs).
+
 ## Deliberately unsupported
 
 - No parameter or firmware writes on real hardware. The web driver's write
   commands have not been independently validated.
 - No bootloader or pairing protocol.
-- Keyboard support is limited to the V98Pro V4 family PIDs listed above; the
-  wired `0x200B` and receiver `0x2A03` PIDs were physically validated.
 - F1 SE support covers the verified wired `0xFB51` and receiver `0xFB50` PIDs.
+- The remaining VHUB families (beiying, rongyuan, vgn-ry-mouse, vgn-kc2,
+  vgn-ldMs, vgn-byMs, vgn-king, flash75/flashextreme, arbit) are mapped in the
+  driver but not implemented; vgn-byMs routes through an obfuscated SDK layer
+  and needs hardware captures first.
 
 The simulator remains available and is used automatically when no supported
 hardware is found.

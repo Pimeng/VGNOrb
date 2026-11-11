@@ -4,9 +4,11 @@ using VGNOrb.Core.Devices;
 namespace VGNOrb.Devices.Vgn;
 
 /// <summary>
-/// Finds the V98Pro V4 raw HID collection used by the public VGN HUB web driver.
-/// The wired 0x200B and receiver 0x2A03 PIDs are physically validated; the other
-/// PIDs are the same V98Pro V4 family in the official web-driver device table.
+/// Finds the BYTECH raw HID collection (usage page 0xFF60, usage 0x61) used by
+/// the public VGN HUB web driver. The V98Pro V4 8K wired 0x200B and receiver
+/// 0x2A03 PIDs are physically validated; the other PIDs are the remaining
+/// "bykeyboard" entries in the official web-driver device table (V98Pro V4 1K,
+/// V87Pro V2, V108Pro and their dongles) and are not hardware-verified yet.
 /// </summary>
 public sealed class VgnKeyboardDiscoveryService : IDeviceDiscoveryService
 {
@@ -21,7 +23,13 @@ public sealed class VgnKeyboardDiscoveryService : IDeviceDiscoveryService
         VerifiedWiredProductId,
         0x2A03,
         0x201C,
-        0x2A0A
+        0x2A0A,
+        0x200C,
+        0x2A04,
+        0x2015,
+        0x2A06,
+        0x2018,
+        0x2A08
     ];
 
     public Task<IReadOnlyList<DeviceDescriptor>> DiscoverAsync(

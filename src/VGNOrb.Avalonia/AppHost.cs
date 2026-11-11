@@ -53,7 +53,10 @@ public sealed class AppHost : IDisposable
                 ? new AutomaticDeviceDiscoveryService(
                     [
                         new VgnHidDeviceDiscoveryService(),
-                        new VgnKeyboardDiscoveryService()
+                        new VgnKeyboardDiscoveryService(),
+                        new VgnWsKeyboardDiscoveryService(),
+                        new VgnYjxMouseDiscoveryService(),
+                        new VgnYjxKeyboardDiscoveryService()
                     ],
                     mockDiscovery)
                 : mockDiscovery;
