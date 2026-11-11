@@ -1,6 +1,8 @@
 using System.ComponentModel;
+using System.Diagnostics;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
+using VGNOrb.Core.Configuration;
 using VGNOrb.Core.Devices;
 using VGNOrb.Core.Polling;
 
@@ -14,18 +16,23 @@ public partial class DeviceTileViewModel : ObservableObject, IAsyncDisposable
 {
     private readonly DevicePollingService _polling;
     private readonly Dispatcher _dispatcher;
+    private readonly BatteryLevelCacheStore? _batteryLevelCache;
     private readonly CancellationTokenSource _lifetimeCancellation = new();
     private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
     private IDevice? _device;
+    private BatteryLevelSmoother? _batterySmoother;
+    private int _lastPersistedBatteryLevel = -1;
     private int _disposed;
 
     public DeviceTileViewModel(
         DeviceDescriptor descriptor,
         int pollIntervalMilliseconds,
-        Dispatcher dispatcher)
+        Dispatcher dispatcher,
+        BatteryLevelCacheStore? batteryLevelCache = null)
     {
         Descriptor = descriptor ?? throw new ArgumentNullException(nameof(descriptor));
         _dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
+        _batteryLevelCache = batteryLevelCache;
         _polling = new DevicePollingService(
             TimeSpan.FromMilliseconds(pollIntervalMilliseconds));
 
@@ -228,6 +235,7 @@ public partial class DeviceTileViewModel : ObservableObject, IAsyncDisposable
             try
             {
                 await _polling.StopAsync().ConfigureAwait(false);
+                await SaveBatteryCacheSafeAsync().ConfigureAwait(false);
 
                 var device = _device;
                 _device = null;
@@ -307,11 +315,58 @@ public partial class DeviceTileViewModel : ObservableObject, IAsyncDisposable
 
     private void ApplyBattery(BatteryStatus battery)
     {
-        BatteryPercent = battery.Percentage;
+        BatteryPercent = SmoothBatteryLevel(battery);
         IsCharging = battery.IsCharging;
         BatteryVoltageMillivolts = battery.VoltageMillivolts;
         LastUpdatedText = $"更新于 {battery.ObservedAt.ToLocalTime():HH:mm:ss}";
         StatusText = BuildConnectedStatus(battery.IsCharging);
+    }
+
+    // The VGN HUB web driver never shows the raw percentage: it maps voltage
+    // onto a discharge curve, ramps the display slowly and persists the display
+    // level per device. BatteryLevelSmoother reproduces that behavior here.
+    private int SmoothBatteryLevel(BatteryStatus battery)
+    {
+        if (_batterySmoother is null)
+        {
+            BatteryLevelSnapshot? persisted = null;
+            _batteryLevelCache?.TryGet(Id, out persisted);
+            _batterySmoother = new BatteryLevelSmoother();
+            return PersistSmoothedLevel(_batterySmoother.Update(battery, persisted));
+        }
+
+        return PersistSmoothedLevel(_batterySmoother.Update(battery));
+    }
+
+    private int PersistSmoothedLevel(int displayLevel)
+    {
+        if (_batteryLevelCache is not null
+            && _batterySmoother is not null
+            && displayLevel != _lastPersistedBatteryLevel)
+        {
+            _lastPersistedBatteryLevel = displayLevel;
+            _batteryLevelCache.Set(Id, _batterySmoother.Snapshot);
+            _ = SaveBatteryCacheSafeAsync();
+        }
+
+        return displayLevel;
+    }
+
+    private async Task SaveBatteryCacheSafeAsync()
+    {
+        if (_batteryLevelCache is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await _batteryLevelCache.SaveIfDirtyAsync().ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"VGN Orb battery cache save failed: {ex}");
+        }
     }
 
     private string BuildConnectedStatus(bool isCharging)

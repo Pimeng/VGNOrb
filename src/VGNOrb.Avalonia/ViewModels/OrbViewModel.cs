@@ -3,6 +3,7 @@ using System.Collections.Specialized;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using VGNOrb.Core.Configuration;
 using VGNOrb.Core.Devices;
 
 namespace VGNOrb.Avalonia.ViewModels;
@@ -17,6 +18,7 @@ public partial class OrbViewModel : ObservableObject, IAsyncDisposable
 
     private readonly IDeviceDiscoveryService _discovery;
     private readonly Dispatcher _dispatcher;
+    private readonly BatteryLevelCacheStore? _batteryLevelCache;
     private readonly int _pollIntervalMilliseconds;
     private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
     private readonly CancellationTokenSource _lifetimeCancellation = new();
@@ -25,10 +27,12 @@ public partial class OrbViewModel : ObservableObject, IAsyncDisposable
     public OrbViewModel(
         IDeviceDiscoveryService discovery,
         int pollIntervalMilliseconds,
-        Dispatcher dispatcher)
+        Dispatcher dispatcher,
+        BatteryLevelCacheStore? batteryLevelCache = null)
     {
         _discovery = discovery ?? throw new ArgumentNullException(nameof(discovery));
         _dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
+        _batteryLevelCache = batteryLevelCache;
         _pollIntervalMilliseconds = pollIntervalMilliseconds;
 
         Devices.CollectionChanged += OnDevicesCollectionChanged;
@@ -97,7 +101,8 @@ public partial class OrbViewModel : ObservableObject, IAsyncDisposable
                 var tile = new DeviceTileViewModel(
                     descriptor,
                     _pollIntervalMilliseconds,
-                    _dispatcher);
+                    _dispatcher,
+                    _batteryLevelCache);
                 Devices.Add(tile);
             }
 

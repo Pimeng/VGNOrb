@@ -36,13 +36,17 @@ public sealed class AppHost : IDisposable
     {
         try
         {
-            var configPath = Path.Combine(
+            var configDirectory = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "VGNOrb",
-                "settings.json");
+                "VGNOrb");
+            var configPath = Path.Combine(configDirectory, "settings.json");
 
             _settingsStore = new AppSettingsStore(configPath);
             _settings = (await _settingsStore.LoadAsync()).Normalize();
+
+            var batteryLevelCache = new BatteryLevelCacheStore(
+                Path.Combine(configDirectory, "battery-levels.json"));
+            await batteryLevelCache.LoadAsync();
 
             var mockDiscovery = new MockDeviceDiscoveryService();
             IDeviceDiscoveryService discovery = _settings.PreferHardware
@@ -57,7 +61,8 @@ public sealed class AppHost : IDisposable
             _viewModel = new OrbViewModel(
                 discovery,
                 _settings.PollIntervalMilliseconds,
-                Dispatcher.UIThread);
+                Dispatcher.UIThread,
+                batteryLevelCache);
             _viewModel.AlwaysOnTop = _settings.AlwaysOnTop;
             _viewModel.PropertyChanged += OnViewModelPropertyChanged;
 
