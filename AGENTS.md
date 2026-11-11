@@ -26,10 +26,11 @@ For a complete local release build:
 ```powershell
 .\build.cmd
 .\build.cmd -NoAot
-.\build.cmd -Version 1.1.0
 ```
 
-The script builds x64 self-contained, framework-dependent and Native AOT packages by default. Artifacts go to `artifacts/build-<version>/`.
+The script builds x64 self-contained, framework-dependent and Native AOT packages by default. Artifacts go to `artifacts/build-<version>/`. Packaging prefers Bandizip (`bz`) and falls back to `Compress-Archive`.
+
+The `<Version>` value in `Directory.Build.props` is the single source of truth for the product version. `build.ps1` reads it, the manifest target injects it into the embedded `app.manifest`, and the assembly and artifact names follow it. Do not duplicate the version elsewhere.
 
 Do not commit `bin/`, `obj/`, `artifacts/` or generated screenshots.
 
@@ -43,12 +44,17 @@ Use readable ASCII asset names:
 
 Do not add `.sha256` sidecar assets; GitHub displays per-asset SHA256 digests automatically. Non-ASCII asset names are normalized by the GitHub upload API and can disappear or collide.
 
+The AOT zip is **not** a single-file executable: `VGNOrb.exe` must stay next to `libSkiaSharp.dll`, `libHarfBuzzSharp.dll` and `av_libglesv2.dll`. Keep the packaging warning in the README.
+
 ## Avalonia UI rules
 
-- Keep the HUD at the top-right of the primary work area.
+- Keep the HUD docked to the configured corner of the primary work area
+  (`hudCorner`, default top-right).
 - The visible card is 300 × 100 for one device and 300 × 200 for two.
-- Only the bottom-left corner is rounded; the top-right edge is flush with the screen.
-- The hot corner is 20 × 20 logical pixels; the hint line lives inside it.
+- The two screen-facing edges stay flush; only the corner facing into the screen
+  keeps the 30 px radius. Left-side placements mirror the row.
+- The hot corner is 20 × 20 logical pixels; the hint line lives inside it and
+  follows the active corner.
 - Both overlay windows are click-through and must not steal focus.
 - Preserve the spring animation timing:
   - show: 600 ms, 68% overshoot `+7px/+5px`, 84% `-2px`
@@ -70,6 +76,7 @@ Do not add `.sha256` sidecar assets; GitHub displays per-asset SHA256 digests au
 - Settings live at `%APPDATA%\VGNOrb\settings.json`.
 - Serialization uses the source-generated `AppSettingsJsonContext`. Do not switch back to reflection-based `JsonSerializer` overloads; that breaks Native AOT.
 - Preserve the 1000–60000 ms polling clamp.
+- `hudCorner` accepts `TopRight` (default), `TopLeft`, `BottomRight` and `BottomLeft`; unknown values normalize back to `TopRight`.
 
 ## Device and protocol rules
 

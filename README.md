@@ -14,10 +14,10 @@
   <img alt="Avalonia 12" src="https://img.shields.io/badge/Avalonia-12-8B44AC">
   <img alt="Windows 10 | 11" src="https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4">
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-green.svg"></a>
-  <img alt="Tests" src="https://img.shields.io/badge/Tests-29%20passing-brightgreen">
+  <img alt="Tests" src="https://img.shields.io/badge/Tests-76%20passing-brightgreen">
 </p>
 
-VGN Orb 是一个常驻系统托盘的 Windows 小工具。鼠标移动到屏幕右上角时，它会弹出一块 Dynamic Island 风格的设备卡片，显示 VGN 鼠标/键盘的电量和连接状态；移开后自动收回。
+VGN Orb 是一个常驻系统托盘的 Windows 小工具。鼠标移动到屏幕角落的热区时，它会弹出一块 Dynamic Island 风格的设备卡片，显示 VGN 鼠标/键盘的电量和连接状态；移开后自动收回。
 
 它直接通过 HID 读取设备数据，不需要安装厂商驱动，也不会修改设备配置。
 
@@ -31,19 +31,20 @@ VGN Orb 是一个常驻系统托盘的 Windows 小工具。鼠标移动到屏幕
 
 ## Features
 
-- **Top-right hover HUD**：20 × 20 热区，鼠标进入后弹出，移出后自动收回。
+- **Corner-docking hover HUD**：可停靠主屏四个角落，20 × 20 热区随位置移动，鼠标进入后弹出，移出后自动收回。
 - **Single / dual device cards**：单设备 300 × 100，双设备 300 × 200，最多显示 2 台。
 - **Dynamic Island-style motion**：小胶囊弹性展开成卡片，内容延迟淡入；收回时反向收起。
 - **Click-through overlay**：HUD 和热区都点击穿透，不抢焦点、不挡操作。
 - **Real HID battery reads**：基于 HidSharp 直接读取鼠标和键盘 HID 报告。
 - **Independent polling**：每台设备有独立连接和轮询生命周期，一台离线不影响另一台。
-- **Tray controls**：刷新全部、重新发现、断开全部、始终置顶和退出。
+- **Tray controls**：刷新全部、重新发现、断开全部、HUD 位置、始终置顶和退出。
 - **Mock fallback**：没有真实设备时自动使用模拟设备，方便开发和预览。
 - **Read-only by design**：不发送未经实物验证的设备写命令。
 
 ### HUD design
 
-- 贴住主屏右上角，仅左下角保留 30px 圆角，其余三角为直角。
+- 可停靠主屏右上、左上、右下、左下四个角落；贴住屏幕的两条边保持直角，朝向屏幕内部的角保留 30px 圆角。
+- 左右两侧布局自动镜像，电量环始终位于屏幕内侧，百分比始终贴近屏幕边缘。
 - 纯黑背景 #000000，霓虹绿电量环 #3CFF00。
 - 字体优先 GeoSansLight，缺失时回退 Segoe UI。
 - 单设备使用“单设备”布局，不会套用双设备行。
@@ -95,7 +96,7 @@ Release 输出：
 
     src/VGNOrb.Avalonia/bin/Release/net10.0/VGNOrb.exe
 
-VGN Orb 没有主窗口。启动后它只出现在系统托盘，等待鼠标进入右上角热区。
+VGN Orb 没有主窗口。启动后它只出现在系统托盘，等待鼠标进入所选角落的热区。
 
 ## One-click build
 
@@ -103,7 +104,7 @@ Windows 下双击或在终端执行：
 
     .\build.cmd
 
-脚本会自动执行 restore、Release build、29 个测试，并生成：
+脚本会自动执行 restore、Release build、76 个测试，并生成：
 
 - `VGNOrb-<version>-win-x64.zip`：AOT 原生主包，默认生成，不需要 .NET Runtime
 - `VGNOrb-<version>-win-x64-portable.zip`：开箱即用，自带运行时，不需要 .NET Runtime
@@ -111,30 +112,36 @@ Windows 下双击或在终端执行：
 
 GitHub Release 的资产名使用 ASCII，避免中文字符在 upload API 中被规范化导致文件名丢失。
 
+> **AOT 版本不是单文件 exe。** 解压后 `VGNOrb.exe` 必须与 `libSkiaSharp.dll`、`libHarfBuzzSharp.dll`、`av_libglesv2.dll` 位于同一目录。只复制 exe 会在启动时提示缺少原生组件。
+
 输出目录：
 
     artifacts\build-<version>\
 
+版本号统一在 `Directory.Build.props` 的 `<Version>` 中维护；程序集版本、应用 manifest 版本和发布包名都由它派生。
+
+打包优先使用 Bandizip（`bz`），未安装或执行失败时自动回退到 PowerShell 的 `Compress-Archive`。
+
 可选参数：
 
-    .\build.cmd -Version 1.1.0
     .\build.cmd -NoAot
     .\build.cmd -SkipTests
 
 也可以直接运行 PowerShell 脚本：
 
-    pwsh -File .\build.ps1 -Version 1.1.0
+    pwsh -File .\build.ps1
 
 ## Usage
 
 | 操作 | 行为 |
 | --- | --- |
-| 鼠标移到右上角 | 展开设备 HUD |
-| 鼠标移出右上角和 HUD | 350ms 后收回 |
+| 鼠标移到 HUD 所在角落 | 展开设备 HUD |
+| 鼠标移出热区和 HUD | 350ms 后收回 |
 | 托盘右键 → 设备 (N/2) | 查看当前设备 |
 | 托盘右键 → 刷新全部电量 | 刷新所有已连接设备 |
 | 托盘右键 → 重新发现并连接 | 重新发现设备并重建连接 |
 | 托盘右键 → 断开全部设备 | 释放全部设备 |
+| 托盘右键 → HUD 位置 | 切换右上 / 左上 / 右下 / 左下 |
 | 托盘右键 → 始终置顶 | 切换 HUD 置顶 |
 | 托盘右键 → 退出 VGN Orb | 关闭应用 |
 
@@ -150,7 +157,8 @@ HUD 本身点击穿透；设备操作从托盘菜单完成。
       "alwaysOnTop": true,
       "autoConnectDevice": true,
       "preferHardware": true,
-      "pollIntervalMilliseconds": 5000
+      "pollIntervalMilliseconds": 5000,
+      "hudCorner": "TopRight"
     }
 
 | 配置项 | 默认值 | 说明 |
@@ -159,6 +167,7 @@ HUD 本身点击穿透；设备操作从托盘菜单完成。
 | autoConnectDevice | true | 启动后自动发现并连接设备 |
 | preferHardware | true | 优先真实设备；没有时回退模拟设备 |
 | pollIntervalMilliseconds | 5000 | 轮询间隔，限制在 1000–60000 毫秒 |
+| hudCorner | TopRight | HUD 停靠角落：TopRight / TopLeft / BottomRight / BottomLeft |
 
 ## Architecture
 
@@ -179,8 +188,9 @@ HUD 本身点击穿透；设备操作从托盘菜单完成。
     │     │  └─ DeviceTileViewModel.cs # 单设备状态与轮询
     │     ├─ Views/
     │     │  ├─ DeviceHudWindow.cs     # 300x100 / 300x200 HUD 和动画
-    │     │  ├─ DeviceRow.cs           # 单设备行
-    │     │  └─ HotCornerWindow.cs     # 20x20 右上角热区
+    │     │  ├─ DeviceRow.cs           # 单设备行（支持左右镜像）
+    │     │  ├─ HudPlacement.cs        # 角落 → 对齐 / 圆角 / 热区提示
+    │     │  └─ HotCornerWindow.cs     # 20x20 角落热区
     │     ├─ Services/
     │     │  ├─ DeviceHudController.cs # 悬停显示/隐藏和点击穿透
     │     │  ├─ TrayIconService.cs     # Avalonia TrayIcon / NativeMenu
@@ -217,6 +227,8 @@ Avalonia 版本支持 Native AOT，发布命令：
 
 当前产物约 39 MB（含 Skia/ANGLE/HarfBuzz 原生库），不需要安装 .NET Runtime。HidSharp 仍会产生 trim warning，发布后应重新验证真实设备连接。
 
+缺少上述原生 DLL 时，启动阶段会显示明确提示，完整异常同时写入 `%APPDATA%\VGNOrb\startup-error.log`。
+
 构建脚本默认生成 AOT 包；如需跳过 AOT 只生成另外两个版本：
 
     .\build.cmd -NoAot
@@ -225,14 +237,14 @@ Avalonia 版本支持 Native AOT，发布命令：
 
     dotnet test tests/VGNOrb.Core.Tests/VGNOrb.Core.Tests.csproj -c Release
 
-当前 **29** 个测试，覆盖：
+当前 **76** 个测试，覆盖：
 
 - F1 SE 鼠标真机抓包：在线、电量、固件、校验和。
 - V98Pro V4 键盘真机抓包：电量、固件、校验和。
 - 模拟设备连接状态、取消连接、参数读写。
 - 轮询持续运行、异常隔离和停止。
 - 设备发现与异常端点。
-- JSON 配置往返、损坏文件回退和参数归一化。
+- JSON 配置往返、损坏文件回退、参数归一化和 HUD 角落默认值。
 
 ## Limitations
 
