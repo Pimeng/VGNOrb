@@ -194,40 +194,43 @@ public sealed class DeviceHudWindow : Window
         }
     }
 
+    private const double ShowDurationMs = 600;
+    private const double HideDurationMs = 230;
+    private const double RootShowDurationMs = 80;
+    private const double ContentShowDelayMs = 110;
+    private const double ContentShowDurationMs = 220;
+    private const double ContentHideDurationMs = 90;
+    private const double RootHideDelayMs = 70;
+    private const double RootHideDurationMs = 150;
+
     private void OnAnimationTick(object? sender, EventArgs e)
     {
-        var duration = _isHiding ? 230d : 600d;
-        var t = Math.Clamp(_animationClock.Elapsed.TotalMilliseconds / duration, 0, 1);
+        var elapsed = _animationClock.Elapsed.TotalMilliseconds;
 
         if (_isHiding)
         {
-            var eased = t * t * t;
-            _card.Width = Lerp(_startWidth, _targetWidth, eased);
-            _card.Height = Lerp(_startHeight, _targetHeight, eased);
-            _content.Opacity = Lerp(_startContentOpacity, 0, Math.Clamp(t / 0.4, 0, 1));
-            _root.Opacity = t < 0.25
+            var sizeProgress = Math.Clamp(elapsed / HideDurationMs, 0, 1);
+            var sizeEase = BackEaseIn(sizeProgress, 0.25);
+            _card.Width = Lerp(_startWidth, _targetWidth, sizeEase);
+            _card.Height = Lerp(_startHeight, _targetHeight, sizeEase);
+            _content.Opacity = Lerp(
+                _startContentOpacity,
+                0,
+                QuadraticIn(Math.Clamp(elapsed / ContentHideDurationMs, 0, 1)));
+            _root.Opacity = elapsed < RootHideDelayMs
                 ? _startRootOpacity
-                : Lerp(_startRootOpacity, 0, SmoothStep((t - 0.25) / 0.75));
-        }
-        else
-        {
-            _card.Width = ShowSize(_startWidth, _targetWidth, t, 7);
-            _card.Height = ShowSize(_startHeight, _targetHeight, t, 5);
-            _root.Opacity = Lerp(_startRootOpacity, 1, Math.Clamp(t / 0.13, 0, 1));
-            _content.Opacity = t < 0.1
-                ? _startContentOpacity
-                : Lerp(_startContentOpacity, 1, SmoothStep(Math.Clamp((t - 0.1) / 0.35, 0, 1)));
-        }
+                : Lerp(
+                    _startRootOpacity,
+                    0,
+                    QuadraticIn(Math.Clamp((elapsed - RootHideDelayMs) / RootHideDurationMs, 0, 1)));
 
-        if (t < 1)
-        {
-            return;
-        }
+            if (elapsed < HideDurationMs)
+            {
+                return;
+            }
 
-        _card.Width = _targetWidth;
-        _card.Height = _targetHeight;
-        if (_isHiding)
-        {
+            _card.Width = _targetWidth;
+            _card.Height = _targetHeight;
             _root.Opacity = 0;
             _content.Opacity = 0;
             var completed = _hideCompleted;
@@ -235,14 +238,33 @@ public sealed class DeviceHudWindow : Window
             _isAnimating = false;
             _hideCompleted = null;
             completed?.Invoke();
+            return;
         }
-        else
+
+        _card.Width = ShowSize(_startWidth, _targetWidth, elapsed, 7);
+        _card.Height = ShowSize(_startHeight, _targetHeight, elapsed, 5);
+        _root.Opacity = Lerp(
+            _startRootOpacity,
+            1,
+            QuadraticOut(Math.Clamp(elapsed / RootShowDurationMs, 0, 1)));
+        _content.Opacity = elapsed < ContentShowDelayMs
+            ? _startContentOpacity
+            : Lerp(
+                _startContentOpacity,
+                1,
+                QuadraticOut(Math.Clamp((elapsed - ContentShowDelayMs) / ContentShowDurationMs, 0, 1)));
+
+        if (elapsed < ShowDurationMs)
         {
-            _root.Opacity = 1;
-            _content.Opacity = 1;
-            _animationTimer.Stop();
-            _isAnimating = false;
+            return;
         }
+
+        _card.Width = _targetWidth;
+        _card.Height = _targetHeight;
+        _root.Opacity = 1;
+        _content.Opacity = 1;
+        _animationTimer.Stop();
+        _isAnimating = false;
     }
 
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -257,8 +279,9 @@ public sealed class DeviceHudWindow : Window
         UpdateContent();
     }
 
-    private static double ShowSize(double start, double target, double t, double overshoot)
+    private static double ShowSize(double start, double target, double elapsed, double overshoot)
     {
+        var t = Math.Clamp(elapsed / ShowDurationMs, 0, 1);
         if (t <= 0)
         {
             return start;
@@ -266,21 +289,71 @@ public sealed class DeviceHudWindow : Window
 
         if (t < 0.68)
         {
-            return Lerp(start, target + overshoot, SmoothStep(t / 0.68));
+            return Lerp(
+                start,
+                target + overshoot,
+                CubicBezier(t / 0.68, 0.15, 0.85, 0.3, 1));
         }
 
         if (t < 0.84)
         {
-            return Lerp(target + overshoot, target - 2, SmoothStep((t - 0.68) / 0.16));
+            return Lerp(
+                target + overshoot,
+                target - 2,
+                CubicBezier((t - 0.68) / 0.16, 0.3, 0.7, 0.55, 1));
         }
 
-        return Lerp(target - 2, target, SmoothStep((t - 0.84) / 0.16));
+        return Lerp(
+            target - 2,
+            target,
+            CubicBezier((t - 0.84) / 0.16, 0.4, 0.6, 0.7, 1));
     }
 
-    private static double SmoothStep(double t)
+    private static double CubicBezier(double x, double x1, double y1, double x2, double y2)
+    {
+        x = Math.Clamp(x, 0, 1);
+
+        var low = 0d;
+        var high = 1d;
+        for (var i = 0; i < 24; i++)
+        {
+            var mid = (low + high) / 2;
+            var sample = 3 * (1 - mid) * (1 - mid) * mid * x1
+                + 3 * (1 - mid) * mid * mid * x2
+                + mid * mid * mid;
+            if (sample < x)
+            {
+                low = mid;
+            }
+            else
+            {
+                high = mid;
+            }
+        }
+
+        var u = (low + high) / 2;
+        return 3 * (1 - u) * (1 - u) * u * y1
+            + 3 * (1 - u) * u * u * y2
+            + u * u * u;
+    }
+
+    private static double QuadraticOut(double t)
     {
         t = Math.Clamp(t, 0, 1);
-        return t * t * (3 - 2 * t);
+        return 1 - (1 - t) * (1 - t);
+    }
+
+    private static double QuadraticIn(double t)
+    {
+        t = Math.Clamp(t, 0, 1);
+        return t * t;
+    }
+
+    private static double BackEaseIn(double t, double amplitude)
+    {
+        t = Math.Clamp(t, 0, 1);
+        var c3 = amplitude + 1;
+        return c3 * t * t * t - amplitude * t * t;
     }
 
     private static double Lerp(double from, double to, double t)

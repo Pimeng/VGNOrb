@@ -49,20 +49,6 @@ function Invoke-DotNet {
     }
 }
 
-function Get-Sha256 {
-    param([Parameter(Mandatory)][string]$Path)
-    $sha = [System.Security.Cryptography.SHA256]::Create()
-    $stream = [System.IO.File]::OpenRead($Path)
-    try {
-        $bytes = $sha.ComputeHash($stream)
-        return ([System.BitConverter]::ToString($bytes)).Replace('-', '').ToLowerInvariant()
-    }
-    finally {
-        $stream.Dispose()
-        $sha.Dispose()
-    }
-}
-
 function New-ReleaseArchive {
     param(
         [Parameter(Mandatory)][string]$PublishDirectory,
@@ -97,13 +83,7 @@ function New-ReleaseArchive {
     Copy-Item -LiteralPath 'docs/vgn-hid-protocol.md' -Destination (Join-Path $stage 'docs') -Force
 
     Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $ArchivePath -CompressionLevel Optimal
-    $hash = Get-Sha256 -Path $ArchivePath
-    $hashFile = $ArchivePath -replace '\.zip$', '.sha256'
-    "$hash  $([System.IO.Path]::GetFileName($ArchivePath))" |
-        Set-Content -LiteralPath $hashFile -Encoding utf8
-
     Write-Host "  $([System.IO.Path]::GetFileName($ArchivePath))  $((Get-Item $ArchivePath).Length) bytes"
-    Write-Host "  SHA256  $hash"
 }
 
 $dotnetVersion = (& dotnet --version).Trim()
