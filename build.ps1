@@ -8,8 +8,7 @@
       - a framework-dependent single-file build (requires .NET 10 Desktop Runtime)
       - a Native AOT build (default)
 
-.PARAMETER Version
-    Artifact version, also passed to the assembly version.
+    The product version is read from Directory.Build.props.
 
 .PARAMETER NoAot
     Skip the Native AOT build. AOT is built by default.
@@ -21,14 +20,10 @@
     .\build.ps1
 
 .EXAMPLE
-    .\build.ps1 -Version 1.1.0
-
-.EXAMPLE
     .\build.ps1 -NoAot
 #>
 [CmdletBinding()]
 param(
-    [string]$Version = '1.0.0',
     [ValidateSet('win-x64')]
     [string]$Runtime = 'win-x64',
     [switch]$NoAot,
@@ -40,6 +35,19 @@ $buildAot = -not $NoAot
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $repoRoot
+
+# Single source of truth for the product version.
+$buildPropsPath = Join-Path $repoRoot 'Directory.Build.props'
+[xml]$buildProps = Get-Content -LiteralPath $buildPropsPath
+$versionNode = $buildProps.SelectSingleNode('/Project/PropertyGroup/Version')
+if ($null -eq $versionNode -or [string]::IsNullOrWhiteSpace($versionNode.InnerText)) {
+    throw "Version is missing from $buildPropsPath"
+}
+
+$version = $versionNode.InnerText.Trim()
+if ($version -notmatch '^\d+\.\d+\.\d+$') {
+    throw "Version '$version' in $buildPropsPath must be numeric (major.minor.patch)."
+}
 
 function Invoke-DotNet {
     param([Parameter(Mandatory)][string[]]$Arguments)
@@ -82,7 +90,34 @@ function New-ReleaseArchive {
     Copy-Item -LiteralPath 'README.md','LICENSE','THIRD-PARTY-NOTICES.md' -Destination $stage -Force
     Copy-Item -LiteralPath 'docs/vgn-hid-protocol.md' -Destination (Join-Path $stage 'docs') -Force
 
-    Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $ArchivePath -CompressionLevel Optimal
+    # Prefer Bandizip when available; fall back to Compress-Archive otherwise.
+    $bandizip = Get-Command bz -ErrorAction SilentlyContinue
+    $packed = $false
+    if ($null -ne $bandizip) {
+        Write-Host '  packaging with Bandizip'
+        Push-Location $stage
+        try {
+            & $bandizip.Source c -fmt:zip -l:9 -y -r $ArchivePath *
+            if ($LASTEXITCODE -eq 0) {
+                $packed = $true
+            } else {
+                Write-Warning "Bandizip failed with exit code $LASTEXITCODE; falling back to Compress-Archive."
+            }
+        } catch {
+            Write-Warning "Bandizip failed: $($_.Exception.Message); falling back to Compress-Archive."
+        } finally {
+            Pop-Location
+        }
+
+        if (-not $packed) {
+            Remove-Item -LiteralPath $ArchivePath -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    if (-not $packed) {
+        Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $ArchivePath -CompressionLevel Optimal
+    }
+
     Write-Host "  $([System.IO.Path]::GetFileName($ArchivePath))  $((Get-Item $ArchivePath).Length) bytes"
 }
 
@@ -91,13 +126,13 @@ if ($LASTEXITCODE -ne 0) {
     throw 'dotnet SDK not found. Install the .NET 10 SDK first.'
 }
 
-$script:OutputRoot = Join-Path $repoRoot ('artifacts\build-' + $Version)
+$script:OutputRoot = Join-Path $repoRoot ('artifacts\build-' + $version)
 if (Test-Path $script:OutputRoot) {
     Remove-Item -LiteralPath $script:OutputRoot -Recurse -Force
 }
 New-Item -ItemType Directory -Path $script:OutputRoot | Out-Null
 
-Write-Host "VGN Orb build $Version ($Runtime)"
+Write-Host "VGN Orb build $version ($Runtime)"
 Write-Host "dotnet $dotnetVersion"
 Write-Host "output $script:OutputRoot"
 
@@ -119,7 +154,6 @@ $commonPublishArgs = @(
     '-p:IncludeNativeLibrariesForSelfExtract=true',
     '-p:DebugType=None',
     '-p:DebugSymbols=false',
-    ('-p:Version=' + $Version),
     '--nologo'
 )
 
@@ -146,21 +180,20 @@ if ($buildAot) {
         '-p:DebugSymbols=false',
         '-p:PublishSingleFile=true',
         '-p:IncludeNativeLibrariesForSelfExtract=true',
-        ('-p:Version=' + $Version),
         '-o',$aotDir,
         '--nologo'
     )
 }
 
 Write-Host "==> package"
-$selfZip = Join-Path $script:OutputRoot ("VGNOrb-$Version-$Runtime-portable.zip")
+$selfZip = Join-Path $script:OutputRoot ("VGNOrb-$version-$Runtime-portable.zip")
 New-ReleaseArchive -PublishDirectory $selfContainedDir -ArchivePath $selfZip -Label 'self-contained'
 
-$fddZip = Join-Path $script:OutputRoot ("VGNOrb-$Version-$Runtime-runtime-required.zip")
+$fddZip = Join-Path $script:OutputRoot ("VGNOrb-$version-$Runtime-runtime-required.zip")
 New-ReleaseArchive -PublishDirectory $frameworkDependentDir -ArchivePath $fddZip -Label 'framework-dependent'
 
 if ($buildAot) {
-    $aotZip = Join-Path $script:OutputRoot ("VGNOrb-$Version-$Runtime.zip")
+    $aotZip = Join-Path $script:OutputRoot ("VGNOrb-$version-$Runtime.zip")
     New-ReleaseArchive -PublishDirectory $aotDir -ArchivePath $aotZip -Label 'aot'
 }
 

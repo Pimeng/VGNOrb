@@ -31,5 +31,26 @@
     <ProjectReference Include="..\VGNOrb.Devices.Vgn\VGNOrb.Devices.Vgn.csproj" />
   </ItemGroup>
 
+  <!--
+    The application manifest identity version must stay in sync with the product
+    version. Generate the embedded manifest from app.manifest and the single
+    <Version> value in Directory.Build.props instead of duplicating it here.
+  -->
+  <Target Name="GenerateVersionedApplicationManifest" BeforeTargets="PrepareForBuild">
+    <PropertyGroup>
+      <_AppManifestVersion>$([System.Version]::Parse('$(Version)').ToString(3)).0</_AppManifestVersion>
+      <_AppManifestTemplate>$([System.IO.File]::ReadAllText('$(MSBuildProjectDirectory)\app.manifest'))</_AppManifestTemplate>
+      <_AppManifestContent>$(_AppManifestTemplate.Replace('@APP_VERSION@', '$(_AppManifestVersion)'))</_AppManifestContent>
+      <_GeneratedAppManifest>$(IntermediateOutputPath)app.generated.manifest</_GeneratedAppManifest>
+    </PropertyGroup>
+    <MakeDir Directories="$(IntermediateOutputPath)" />
+    <WriteLinesToFile File="$(_GeneratedAppManifest)" Lines="$(_AppManifestContent)" Overwrite="true" />
+    <PropertyGroup>
+      <ApplicationManifest>$(_GeneratedAppManifest)</ApplicationManifest>
+      <Win32Manifest>$(_GeneratedAppManifest)</Win32Manifest>
+      <EmbeddedWin32Manifest>$(_GeneratedAppManifest)</EmbeddedWin32Manifest>
+    </PropertyGroup>
+  </Target>
+
 </Project>
 
