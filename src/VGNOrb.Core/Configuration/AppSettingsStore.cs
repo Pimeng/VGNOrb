@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace VGNOrb.Core.Configuration;
 
@@ -8,11 +9,6 @@ namespace VGNOrb.Core.Configuration;
 /// </summary>
 public sealed class AppSettingsStore
 {
-    private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web)
-    {
-        WriteIndented = true
-    };
-
     public AppSettingsStore(string filePath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
@@ -39,7 +35,7 @@ public sealed class AppSettingsStore
                 FileOptions.Asynchronous | FileOptions.SequentialScan);
 
             var settings = await JsonSerializer
-                .DeserializeAsync<AppSettings>(stream, SerializerOptions, cancellationToken)
+                .DeserializeAsync(stream, AppSettingsJsonContext.Default.AppSettings, cancellationToken)
                 .ConfigureAwait(false);
 
             return (settings ?? new AppSettings()).Normalize();
@@ -77,7 +73,7 @@ public sealed class AppSettingsStore
                 FileOptions.Asynchronous))
             {
                 await JsonSerializer
-                    .SerializeAsync(stream, settings.Normalize(), SerializerOptions, cancellationToken)
+                    .SerializeAsync(stream, settings.Normalize(), AppSettingsJsonContext.Default.AppSettings, cancellationToken)
                     .ConfigureAwait(false);
                 await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
             }

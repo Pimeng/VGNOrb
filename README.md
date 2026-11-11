@@ -11,6 +11,7 @@
 
 <p align="center">
   <img alt=".NET 10" src="https://img.shields.io/badge/.NET-10-512BD4">
+  <img alt="Avalonia 12" src="https://img.shields.io/badge/Avalonia-12-8B44AC">
   <img alt="Windows 10 | 11" src="https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4">
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-green.svg"></a>
   <img alt="Tests" src="https://img.shields.io/badge/Tests-29%20passing-brightgreen">
@@ -88,13 +89,39 @@ VGN Orb 是一个常驻系统托盘的 Windows 小工具。鼠标移动到屏幕
     cd VGNOrb
     dotnet restore VGNOrb.sln
     dotnet build VGNOrb.sln -c Release
-    dotnet run --project src/VGNOrb.App/VGNOrb.App.csproj
+    dotnet run --project src/VGNOrb.Avalonia/VGNOrb.Avalonia.csproj
 
 Release 输出：
 
-    src/VGNOrb.App/bin/Release/net10.0-windows/VGNOrb.exe
+    src/VGNOrb.Avalonia/bin/Release/net10.0/VGNOrb.exe
 
 VGN Orb 没有主窗口。启动后它只出现在系统托盘，等待鼠标进入右上角热区。
+
+## One-click build
+
+Windows 下双击或在终端执行：
+
+    .\build.cmd
+
+脚本会自动执行 restore、Release build、29 个测试，并生成：
+
+- `VGNOrb-<version>-win-x64.zip`：AOT 原生主包，默认生成，不需要 .NET Runtime
+- `VGNOrb-<version>-win-x64-开箱即用.zip`：自带运行时，不需要 .NET Runtime
+- `VGNOrb-<version>-win-x64-需装运行时.zip`：需要 .NET 10 Desktop Runtime
+
+输出目录：
+
+    artifacts\build-<version>\
+
+可选参数：
+
+    .\build.cmd -Version 1.1.0
+    .\build.cmd -NoAot
+    .\build.cmd -SkipTests
+
+也可以直接运行 PowerShell 脚本：
+
+    pwsh -File .\build.ps1 -Version 1.1.0
 
 ## Usage
 
@@ -135,24 +162,27 @@ HUD 本身点击穿透；设备操作从托盘菜单完成。
 
     VGNOrb.sln
     ├─ src/
-    │  ├─ VGNOrb.Core/                 # 无 WPF 依赖
+    │  ├─ VGNOrb.Core/                 # 无 UI 依赖
     │  │  ├─ Devices/                  # IDevice / 发现接口 / 数据模型 / Mock
     │  │  ├─ Polling/                  # 独立轮询
-    │  │  └─ Configuration/            # JSON 配置
+    │  │  └─ Configuration/            # JSON 配置 + source generation
     │  ├─ VGNOrb.Devices.Vgn/          # HidSharp + 真机 HID 适配器
     │  │  ├─ VgnJmProtocol.cs          # F1 SE 鼠标协议
     │  │  ├─ VgnKeyboardProtocol.cs    # V98Pro V4 键盘协议
     │  │  └─ Vgn*Device*.cs
-    │  └─ VGNOrb.App/                  # WPF 组合根
+    │  └─ VGNOrb.Avalonia/             # Avalonia 12 组合根
+    │     ├─ App.cs / AppHost.cs       # 生命周期、配置和自动连接
     │     ├─ ViewModels/
     │     │  ├─ OrbViewModel.cs        # 最多 2 台设备编排
     │     │  └─ DeviceTileViewModel.cs # 单设备状态与轮询
     │     ├─ Views/
-    │     │  ├─ DeviceHudWindow.xaml   # 300x100 / 300x200 HUD
-    │     │  └─ HotCornerWindow.xaml   # 20x20 右上角热区
+    │     │  ├─ DeviceHudWindow.cs     # 300x100 / 300x200 HUD 和动画
+    │     │  ├─ DeviceRow.cs           # 单设备行
+    │     │  └─ HotCornerWindow.cs     # 20x20 右上角热区
     │     ├─ Services/
-    │     │  ├─ DeviceHudController.cs # 悬停显示/隐藏和动画
-    │     │  └─ TrayIconService.cs
+    │     │  ├─ DeviceHudController.cs # 悬停显示/隐藏和点击穿透
+    │     │  ├─ TrayIconService.cs     # Avalonia TrayIcon / NativeMenu
+    │     │  └─ AutomaticDeviceDiscoveryService.cs
     │     └─ Controls/BatteryRing.cs
     └─ tests/
        └─ VGNOrb.Core.Tests/
@@ -164,6 +194,30 @@ HUD 本身点击穿透；设备操作从托盘菜单完成。
 3. 每台设备拥有独立的 DevicePollingService。
 4. 设备状态推送到 DeviceTileViewModel，由 OrbViewModel 汇总。
 5. DeviceHudController 根据 20 × 20 热区和当前设备数控制 HUD。
+
+## Tech stack
+
+- C# / .NET 10
+- Avalonia 12.1.6
+- SkiaSharp / HarfBuzz（由 Avalonia 渲染后端使用）
+- CommunityToolkit.Mvvm 8.4.2
+- HidSharp 2.6.4
+- System.Text.Json source generation（AOT-safe settings）
+
+## Native AOT
+
+Avalonia 版本支持 Native AOT，发布命令：
+
+    dotnet publish src/VGNOrb.Avalonia/VGNOrb.Avalonia.csproj ^
+      -c Release -r win-x64 -p:PublishAot=true ^
+      -p:NuGetAudit=false -p:SuppressTrimAnalysisWarnings=true ^
+      -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
+
+当前产物约 39 MB（含 Skia/ANGLE/HarfBuzz 原生库），不需要安装 .NET Runtime。HidSharp 仍会产生 trim warning，发布后应重新验证真实设备连接。
+
+构建脚本默认生成 AOT 包；如需跳过 AOT 只生成另外两个版本：
+
+    .\build.cmd -NoAot
 
 ## Testing
 
@@ -203,7 +257,7 @@ MIT 许可只覆盖本项目的代码和文档，不覆盖 GeoSansLight 字体�
 
 - 提交信息使用 [Conventional Commits](https://www.conventionalcommits.org/)：feat(ui): ...、fix(devices): ...、docs: ...。
 - 提交前运行 Release 构建、全部测试和 dotnet format。
-- VGNOrb.Core 不应引入 WPF 依赖。
+- VGNOrb.Core 不应引入 UI 框架依赖。
 - 新设备或新协议请补充抓包回归测试，不要提交未验证的写命令。
 - 不要复制厂商代码或固件。
 
@@ -217,6 +271,7 @@ VGN Orb 是非官方项目，与 VGN 官方无关联。VGN 及相关产品名称
 
 - [SmartIsland](https://github.com/agupta07505/SmartIsland) — pill → card 形变参考
 - [Physics-Toast](https://github.com/vorojar/Physics-Toast) — 弹簧和打断连续性参考
+- [Avalonia](https://avaloniaui.net/) — cross-platform XAML UI
 - [HidSharp](https://github.com/IntergatedCircuits/HidSharp) — HID 传输
 - [CommunityToolkit.Mvvm](https://github.com/CommunityToolkit/dotnet) — MVVM
 - [GeoSansLight](https://www.dafont.com/geo-sans-light.font) — Manfred Klein

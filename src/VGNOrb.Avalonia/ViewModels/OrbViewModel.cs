@@ -1,11 +1,11 @@
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
-using System.Windows.Threading;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using VGNOrb.Core.Devices;
 
-namespace VGNOrb.App.ViewModels;
+namespace VGNOrb.Avalonia.ViewModels;
 
 /// <summary>
 /// Owns the multi-device session: discovery, up to two independent device rows,
@@ -332,3 +332,4 @@ public partial class OrbViewModel : ObservableObject, IAsyncDisposable
         }
     }
 }
+

@@ -7,7 +7,11 @@ licenses remain with their respective copyright holders.
 
 | Component | Version | License |
 | --- | --- | --- |
-| .NET 10 / WPF / Windows Forms | 10 | MIT |
+| .NET 10 | 10 | MIT |
+| Avalonia / Avalonia.Desktop / Avalonia.Themes.Fluent | 12.1.6 | MIT |
+| SkiaSharp | 3.119.4 | MIT |
+| HarfBuzzSharp | bundled with Avalonia | MIT |
+| ANGLE (av_libglesv2) | bundled native renderer | BSD-3-Clause |
 | System.Text.Json | .NET 10 | MIT |
 | CommunityToolkit.Mvvm | 8.4.2 | MIT |
 | HidSharp | 2.6.4 | MIT |

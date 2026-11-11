@@ -1,19 +1,15 @@
 using System.Collections.Specialized;
+using System.ComponentModel;
 using System.Runtime.InteropServices;
-using System.Windows;
-using System.Windows.Interop;
-using System.Windows.Threading;
-using VGNOrb.App.ViewModels;
-using VGNOrb.App.Views;
-using Point = System.Windows.Point;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Threading;
+using VGNOrb.Avalonia.ViewModels;
+using VGNOrb.Avalonia.Views;
+using Point = Avalonia.Point;
 
-namespace VGNOrb.App.Services;
+namespace VGNOrb.Avalonia.Services;
 
-/// <summary>
-/// Reveals the top-right device HUD when the pointer enters the corner hot zone
-/// and hides it after the pointer leaves both the hot zone and the HUD. Both
-/// overlay windows are click-through so the corner does not block other apps.
-/// </summary>
 public sealed class DeviceHudController : IDisposable
 {
     private const int GwlExStyle = -20;
@@ -21,6 +17,7 @@ public sealed class DeviceHudController : IDisposable
     private const int WsExToolWindow = 0x00000080;
     private const int WsExNoActivate = 0x08000000;
     private const double HudWindowBottomPadding = 16;
+    private const double HotSpotSize = 20;
     private static readonly TimeSpan HideDelay = TimeSpan.FromMilliseconds(350);
 
     private readonly OrbViewModel _viewModel;
@@ -35,17 +32,23 @@ public sealed class DeviceHudController : IDisposable
     {
         _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
 
-        _hud = new DeviceHudWindow
+        _hud = new DeviceHudWindow(viewModel)
         {
-            DataContext = viewModel
+            ShowActivated = false,
+            Topmost = viewModel.AlwaysOnTop
         };
-        _hotCorner = new HotCornerWindow();
+        _hotCorner = new HotCornerWindow
+        {
+            ShowActivated = false
+        };
         _pollTimer = new DispatcherTimer
         {
             Interval = TimeSpan.FromMilliseconds(80)
         };
         _pollTimer.Tick += OnPollTimerTick;
+
         _viewModel.Devices.CollectionChanged += OnDevicesCollectionChanged;
+        _viewModel.PropertyChanged += OnViewModelPropertyChanged;
         _hud.Height = _viewModel.HudHeight + HudWindowBottomPadding;
     }
 
@@ -53,13 +56,9 @@ public sealed class DeviceHudController : IDisposable
     {
         ThrowIfDisposed();
 
-        // Initialize the hidden window without a visible flash so its HWND is
-        // available for click-through styling and physical screen hit testing.
         PositionWindows();
-        _hud.Opacity = 0;
         _hud.Show();
         _hud.Hide();
-        _hud.Opacity = 1;
         _hud.ResetAnimationState();
 
         _hotCorner.Show();
@@ -80,21 +79,32 @@ public sealed class DeviceHudController : IDisposable
         _pollTimer.Stop();
         _pollTimer.Tick -= OnPollTimerTick;
         _viewModel.Devices.CollectionChanged -= OnDevicesCollectionChanged;
+        _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
         _hud.StopAnimation();
         _hud.Close();
         _hotCorner.Close();
     }
 
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(OrbViewModel.AlwaysOnTop))
+        {
+            _hud.Topmost = _viewModel.AlwaysOnTop;
+        }
+    }
+
     private void OnDevicesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         _hud.Height = _viewModel.HudHeight + HudWindowBottomPadding;
+        _hud.RefreshWindowHeight();
+        _hud.UpdateContent();
         PositionWindows();
     }
 
     private void OnPollTimerTick(object? sender, EventArgs e)
     {
         var cursor = GetCursorPosition();
-        var hotRect = GetWindowRectangle(_hotCorner);
+        var hotRect = GetHotSpotRectangle();
         var hudRect = GetWindowRectangle(_hud);
         var overHot = Contains(hotRect, cursor);
         var overHud = _hud.IsVisible && Contains(hudRect, cursor);
@@ -161,18 +171,23 @@ public sealed class DeviceHudController : IDisposable
 
     private void PositionWindows()
     {
-        var workArea = SystemParameters.WorkArea;
+        var screen = _hud.Screens.Primary;
+        if (screen is null)
+        {
+            return;
+        }
 
-        _hotCorner.Left = workArea.Right - _hotCorner.Width;
-        _hotCorner.Top = workArea.Top;
+        var scale = screen.Scaling;
+        var hudLeft = screen.WorkingArea.Right - (int)Math.Ceiling(_hud.Width * scale);
+        var hotLeft = screen.WorkingArea.Right - (int)Math.Ceiling(_hotCorner.Width * scale);
 
-        _hud.Left = workArea.Right - _hud.Width;
-        _hud.Top = workArea.Top;
+        _hud.Position = new PixelPoint(hudLeft, screen.WorkingArea.Y);
+        _hotCorner.Position = new PixelPoint(hotLeft, screen.WorkingArea.Y);
     }
 
     private static void MakeClickThrough(Window window)
     {
-        var handle = new WindowInteropHelper(window).Handle;
+        var handle = window.TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
         if (handle == IntPtr.Zero)
         {
             return;
@@ -187,7 +202,8 @@ public sealed class DeviceHudController : IDisposable
 
     private static bool Contains(Rect rect, Point point)
     {
-        return !rect.IsEmpty
+        return rect.Width > 0
+            && rect.Height > 0
             && point.X >= rect.Left
             && point.X <= rect.Right
             && point.Y >= rect.Top
@@ -201,12 +217,28 @@ public sealed class DeviceHudController : IDisposable
             : new Point(double.NaN, double.NaN);
     }
 
+    private Rect GetHotSpotRectangle()
+    {
+        var screen = _hotCorner.Screens.Primary;
+        if (screen is null)
+        {
+            return GetWindowRectangle(_hotCorner);
+        }
+
+        var size = (int)Math.Ceiling(HotSpotSize * screen.Scaling);
+        return new Rect(
+            screen.WorkingArea.Right - size,
+            screen.WorkingArea.Y,
+            size,
+            size);
+    }
+
     private static Rect GetWindowRectangle(Window window)
     {
-        var handle = new WindowInteropHelper(window).Handle;
+        var handle = window.TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
         if (handle == IntPtr.Zero || !GetWindowRect(handle, out var rect))
         {
-            return Rect.Empty;
+            return default;
         }
 
         return new Rect(rect.Left, rect.Top, rect.Right - rect.Left, rect.Bottom - rect.Top);

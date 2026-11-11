@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
 using VGNOrb.Core.Devices;
 
-namespace VGNOrb.App.Services;
+namespace VGNOrb.Avalonia.Services;
 
 /// <summary>
 /// Merges all supported hardware discovery sources and falls back to the mock only
@@ -87,3 +87,4 @@ public sealed class AutomaticDeviceDiscoveryService : IDeviceDiscoveryService
         throw new InvalidOperationException("设备描述已过期，请重新发现设备。");
     }
 }
+

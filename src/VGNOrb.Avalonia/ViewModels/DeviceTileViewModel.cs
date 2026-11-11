@@ -1,10 +1,10 @@
 using System.ComponentModel;
-using System.Windows.Threading;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using VGNOrb.Core.Devices;
 using VGNOrb.Core.Polling;
 
-namespace VGNOrb.App.ViewModels;
+namespace VGNOrb.Avalonia.ViewModels;
 
 /// <summary>
 /// One independent device tile. Each tile owns its polling loop and device handle,
@@ -328,18 +328,15 @@ public partial class DeviceTileViewModel : ObservableObject, IAsyncDisposable
 
     private void PostToUi(Action action)
     {
-        if (_dispatcher.HasShutdownStarted || _dispatcher.HasShutdownFinished)
+        if (_dispatcher.CheckAccess())
         {
+            action();
             return;
         }
 
         try
         {
-            _dispatcher.BeginInvoke(DispatcherPriority.DataBind, action);
-        }
-        catch (TaskCanceledException)
-        {
-            // Dispatcher is shutting down.
+            _dispatcher.Post(action, DispatcherPriority.Background);
         }
         catch (InvalidOperationException)
         {
@@ -398,3 +395,4 @@ public partial class DeviceTileViewModel : ObservableObject, IAsyncDisposable
         return $"参数：{profile} · {dpi}";
     }
 }
+
