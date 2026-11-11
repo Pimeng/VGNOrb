@@ -173,10 +173,10 @@ if ($buildAot) {
 }
 
 Write-Host "==> package"
-$selfZip = Join-Path $script:OutputRoot ("VGNOrb-$Version-$Runtime-开箱即用.zip")
+$selfZip = Join-Path $script:OutputRoot ("VGNOrb-$Version-$Runtime-portable.zip")
 New-ReleaseArchive -PublishDirectory $selfContainedDir -ArchivePath $selfZip -Label 'self-contained'
 
-$fddZip = Join-Path $script:OutputRoot ("VGNOrb-$Version-$Runtime-需装运行时.zip")
+$fddZip = Join-Path $script:OutputRoot ("VGNOrb-$Version-$Runtime-runtime-required.zip")
 New-ReleaseArchive -PublishDirectory $frameworkDependentDir -ArchivePath $fddZip -Label 'framework-dependent'
 
 if ($buildAot) {

@@ -106,8 +106,10 @@ Windows 下双击或在终端执行：
 脚本会自动执行 restore、Release build、29 个测试，并生成：
 
 - `VGNOrb-<version>-win-x64.zip`：AOT 原生主包，默认生成，不需要 .NET Runtime
-- `VGNOrb-<version>-win-x64-开箱即用.zip`：自带运行时，不需要 .NET Runtime
-- `VGNOrb-<version>-win-x64-需装运行时.zip`：需要 .NET 10 Desktop Runtime
+- `VGNOrb-<version>-win-x64-portable.zip`：开箱即用，自带运行时，不需要 .NET Runtime
+- `VGNOrb-<version>-win-x64-runtime-required.zip`：需要 .NET 10 Desktop Runtime
+
+GitHub Release 的资产名使用 ASCII，避免中文字符在 upload API 中被规范化导致文件名丢失。
 
 输出目录：
 
