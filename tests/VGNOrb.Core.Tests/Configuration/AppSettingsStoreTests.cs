@@ -17,7 +17,8 @@ public sealed class AppSettingsStoreTests
                 AlwaysOnTop = false,
                 AutoConnectDevice = false,
                 PreferHardware = false,
-                PollIntervalMilliseconds = 7500
+                PollIntervalMilliseconds = 7500,
+                HudCorner = HudCorner.BottomLeft
             };
 
             await store.SaveAsync(settings);
@@ -27,6 +28,7 @@ public sealed class AppSettingsStoreTests
             Assert.Equal(settings, loaded);
             var json = await File.ReadAllTextAsync(path);
             Assert.Contains(@"""alwaysOnTop"": false", json);
+            Assert.Contains(@"""hudCorner"": ""BottomLeft""", json);
         }
         finally
         {
@@ -55,16 +57,38 @@ public sealed class AppSettingsStoreTests
     }
 
     [Fact]
+    public async Task Load_WithoutHudCorner_UsesTopRightDefault()
+    {
+        var directory = CreateTemporaryDirectory();
+        try
+        {
+            var path = Path.Combine(directory, "settings.json");
+            await File.WriteAllTextAsync(path, """{ "alwaysOnTop": false }""");
+            var store = new AppSettingsStore(path);
+
+            var loaded = await store.LoadAsync();
+
+            Assert.Equal(HudCorner.TopRight, loaded.HudCorner);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
     public void Normalize_ClampsUnsafeManualValues()
     {
         var settings = new AppSettings
         {
-            PollIntervalMilliseconds = 5
+            PollIntervalMilliseconds = 5,
+            HudCorner = (HudCorner)99
         };
 
         var normalized = settings.Normalize();
 
         Assert.Equal(1000, normalized.PollIntervalMilliseconds);
+        Assert.Equal(HudCorner.TopRight, normalized.HudCorner);
         Assert.True(normalized.AlwaysOnTop);
     }
 

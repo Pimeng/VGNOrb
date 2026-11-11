@@ -16,7 +16,7 @@ public sealed class DeviceHudController : IDisposable
     private const int WsExTransparent = 0x00000020;
     private const int WsExToolWindow = 0x00000080;
     private const int WsExNoActivate = 0x08000000;
-    private const double HudWindowBottomPadding = 16;
+    private const double HudWindowEdgePadding = 16;
     private const double HotSpotSize = 20;
     private static readonly TimeSpan HideDelay = TimeSpan.FromMilliseconds(350);
 
@@ -49,14 +49,14 @@ public sealed class DeviceHudController : IDisposable
 
         _viewModel.Devices.CollectionChanged += OnDevicesCollectionChanged;
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
-        _hud.Height = _viewModel.HudHeight + HudWindowBottomPadding;
+        _hud.Height = _viewModel.HudHeight + HudWindowEdgePadding;
     }
 
     public void Start()
     {
         ThrowIfDisposed();
 
-        PositionWindows();
+        ApplyHudCorner();
         _hud.Show();
         _hud.Hide();
         _hud.ResetAnimationState();
@@ -87,15 +87,28 @@ public sealed class DeviceHudController : IDisposable
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(OrbViewModel.AlwaysOnTop))
+        switch (e.PropertyName)
         {
-            _hud.Topmost = _viewModel.AlwaysOnTop;
+            case nameof(OrbViewModel.AlwaysOnTop):
+                _hud.Topmost = _viewModel.AlwaysOnTop;
+                break;
+            case nameof(OrbViewModel.HudCorner):
+                ApplyHudCorner();
+                break;
         }
+    }
+
+    private void ApplyHudCorner()
+    {
+        var corner = _viewModel.HudCorner;
+        _hud.ApplyCorner(corner);
+        _hotCorner.ApplyCorner(corner);
+        PositionWindows();
     }
 
     private void OnDevicesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
-        _hud.Height = _viewModel.HudHeight + HudWindowBottomPadding;
+        _hud.Height = _viewModel.HudHeight + HudWindowEdgePadding;
         _hud.RefreshWindowHeight();
         _hud.UpdateContent();
         PositionWindows();
@@ -178,11 +191,23 @@ public sealed class DeviceHudController : IDisposable
         }
 
         var scale = screen.Scaling;
-        var hudLeft = screen.WorkingArea.Right - (int)Math.Ceiling(_hud.Width * scale);
-        var hotLeft = screen.WorkingArea.Right - (int)Math.Ceiling(_hotCorner.Width * scale);
+        var area = screen.WorkingArea;
+        var corner = _viewModel.HudCorner;
+        var onRight = HudPlacement.IsRightSide(corner);
+        var onBottom = HudPlacement.IsBottomSide(corner);
 
-        _hud.Position = new PixelPoint(hudLeft, screen.WorkingArea.Y);
-        _hotCorner.Position = new PixelPoint(hotLeft, screen.WorkingArea.Y);
+        var hudWidth = (int)Math.Ceiling(_hud.Width * scale);
+        var hudHeight = (int)Math.Ceiling(_hud.Height * scale);
+        var hotWidth = (int)Math.Ceiling(_hotCorner.Width * scale);
+        var hotHeight = (int)Math.Ceiling(_hotCorner.Height * scale);
+
+        var hudLeft = onRight ? area.Right - hudWidth : area.X;
+        var hudTop = onBottom ? area.Bottom - hudHeight : area.Y;
+        var hotLeft = onRight ? area.Right - hotWidth : area.X;
+        var hotTop = onBottom ? area.Bottom - hotHeight : area.Y;
+
+        _hud.Position = new PixelPoint(hudLeft, hudTop);
+        _hotCorner.Position = new PixelPoint(hotLeft, hotTop);
     }
 
     private static void MakeClickThrough(Window window)
@@ -226,9 +251,11 @@ public sealed class DeviceHudController : IDisposable
         }
 
         var size = (int)Math.Ceiling(HotSpotSize * screen.Scaling);
+        var area = screen.WorkingArea;
+        var corner = _viewModel.HudCorner;
         return new Rect(
-            screen.WorkingArea.Right - size,
-            screen.WorkingArea.Y,
+            HudPlacement.IsRightSide(corner) ? area.Right - size : area.X,
+            HudPlacement.IsBottomSide(corner) ? area.Bottom - size : area.Y,
             size,
             size);
     }

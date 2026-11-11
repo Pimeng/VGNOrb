@@ -50,6 +50,9 @@ public partial class OrbViewModel : ObservableObject, IAsyncDisposable
     private bool _alwaysOnTop = true;
 
     [ObservableProperty]
+    private HudCorner _hudCorner = HudCorner.TopRight;
+
+    [ObservableProperty]
     private string _statusText = "准备就绪";
 
     public DeviceTileViewModel? PrimaryDevice => Devices.Count > 0 ? Devices[0] : null;

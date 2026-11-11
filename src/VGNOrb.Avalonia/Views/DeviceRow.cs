@@ -9,6 +9,8 @@ namespace VGNOrb.Avalonia.Views;
 
 public sealed class DeviceRow : Canvas
 {
+    private const double RowWidth = 300;
+
     private static readonly FontFamily HudFont = new("GeosansLight, Segoe UI");
     private static readonly IBrush White = Brushes.White;
     private static readonly IBrush Track = new SolidColorBrush(Color.Parse("#17300B"));
@@ -19,10 +21,11 @@ public sealed class DeviceRow : Canvas
     private readonly TextBlock _identify;
     private readonly TextBlock _percentage;
     private DeviceTileViewModel? _device;
+    private bool _mirrored;
 
     public DeviceRow()
     {
-        Width = 300;
+        Width = RowWidth;
         Height = 100;
         ClipToBounds = true;
         IsVisible = false;
@@ -35,7 +38,6 @@ public sealed class DeviceRow : Canvas
             TrackBrush = Track,
             ProgressBrush = Neon
         };
-        SetLeft(_ring, 12);
         SetTop(_ring, 10);
         Children.Add(_ring);
 
@@ -48,7 +50,6 @@ public sealed class DeviceRow : Canvas
             TextTrimming = TextTrimming.CharacterEllipsis,
             TextWrapping = TextWrapping.NoWrap
         };
-        SetLeft(_title, 96);
         SetTop(_title, 4);
         Children.Add(_title);
 
@@ -60,7 +61,6 @@ public sealed class DeviceRow : Canvas
             Foreground = White,
             TextTrimming = TextTrimming.CharacterEllipsis
         };
-        SetLeft(_identify, 100);
         SetTop(_identify, 53);
         Children.Add(_identify);
 
@@ -69,12 +69,27 @@ public sealed class DeviceRow : Canvas
             Width = 70,
             FontFamily = HudFont,
             FontSize = 34,
-            Foreground = White,
-            TextAlignment = TextAlignment.Right
+            Foreground = White
         };
-        SetLeft(_percentage, 205);
         SetTop(_percentage, 41);
         Children.Add(_percentage);
+
+        ApplyLayout();
+    }
+
+    /// <summary>
+    /// Mirrors the row for left-side corners so the battery ring stays on the
+    /// inner edge and the percentage stays next to the screen edge.
+    /// </summary>
+    public void SetMirrored(bool mirrored)
+    {
+        if (_mirrored == mirrored)
+        {
+            return;
+        }
+
+        _mirrored = mirrored;
+        ApplyLayout();
     }
 
     public void Bind(DeviceTileViewModel? device)
@@ -103,6 +118,18 @@ public sealed class DeviceRow : Canvas
     private void OnDevicePropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         Update();
+    }
+
+    private void ApplyLayout()
+    {
+        SetLeft(_ring, _mirrored ? RowWidth - 12 - 80 : 12);
+        SetLeft(_title, _mirrored ? RowWidth - 96 - 190 : 96);
+        SetLeft(_identify, _mirrored ? RowWidth - 100 - 110 : 100);
+        SetLeft(_percentage, _mirrored ? RowWidth - 205 - 70 : 205);
+
+        _title.TextAlignment = _mirrored ? TextAlignment.Right : TextAlignment.Left;
+        _identify.TextAlignment = _mirrored ? TextAlignment.Right : TextAlignment.Left;
+        _percentage.TextAlignment = _mirrored ? TextAlignment.Left : TextAlignment.Right;
     }
 
     private void Update()

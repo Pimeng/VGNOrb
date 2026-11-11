@@ -5,6 +5,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
 using VGNOrb.Avalonia.ViewModels;
+using VGNOrb.Core.Configuration;
 
 namespace VGNOrb.Avalonia.Views;
 
@@ -95,15 +96,13 @@ public sealed class DeviceHudWindow : Window
             Width = ExpandedWidth,
             Height = 100,
             Background = Brushes.Black,
-            CornerRadius = new CornerRadius(0, 0, 0, 30),
             ClipToBounds = true,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Top,
             Child = _content
         };
 
         _root = new Grid { Children = { _card } };
         Content = _root;
+        ApplyCorner(_viewModel.HudCorner);
 
         _animationTimer = new DispatcherTimer
         {
@@ -117,6 +116,22 @@ public sealed class DeviceHudWindow : Window
     }
 
     public double WindowHeight => _viewModel.HudHeight + 16;
+
+    /// <summary>
+    /// Anchors the card to the configured screen corner, rounds the corner that
+    /// faces into the screen and mirrors the row for left-side placements.
+    /// </summary>
+    public void ApplyCorner(HudCorner corner)
+    {
+        _card.HorizontalAlignment = HudPlacement.HorizontalAlignmentFor(corner);
+        _card.VerticalAlignment = HudPlacement.VerticalAlignmentFor(corner);
+        _card.CornerRadius = HudPlacement.CardCornerRadius(corner);
+
+        var mirrored = !HudPlacement.IsRightSide(corner);
+        _singleRow.SetMirrored(mirrored);
+        _dualPrimaryRow.SetMirrored(mirrored);
+        _dualSecondaryRow.SetMirrored(mirrored);
+    }
 
     public void PlayShowAnimation()
     {

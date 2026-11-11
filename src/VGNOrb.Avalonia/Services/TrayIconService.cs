@@ -5,6 +5,7 @@ using Avalonia.Controls;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using VGNOrb.Avalonia.ViewModels;
+using VGNOrb.Core.Configuration;
 
 namespace VGNOrb.Avalonia.Services;
 
@@ -144,6 +145,7 @@ public sealed class TrayIconService : IDisposable
             IsEnabled = _viewModel.DisconnectAllCommand.CanExecute(null)
         });
         menu.Add(new NativeMenuItemSeparator());
+        menu.Add(BuildCornerMenu());
         var alwaysOnTop = new NativeMenuItem
         {
             Header = _viewModel.AlwaysOnTop ? "始终置顶 ✓" : "始终置顶"
@@ -157,6 +159,42 @@ public sealed class TrayIconService : IDisposable
 
         return menu;
     }
+
+    private NativeMenuItem BuildCornerMenu()
+    {
+        var positionMenu = new NativeMenu();
+        foreach (var corner in new[]
+                 {
+                     HudCorner.TopRight,
+                     HudCorner.TopLeft,
+                     HudCorner.BottomRight,
+                     HudCorner.BottomLeft
+                 })
+        {
+            var target = corner;
+            var label = CornerLabel(target);
+            var item = new NativeMenuItem
+            {
+                Header = _viewModel.HudCorner == target ? $"✓ {label}" : label
+            };
+            item.Click += (_, _) => _viewModel.HudCorner = target;
+            positionMenu.Add(item);
+        }
+
+        return new NativeMenuItem
+        {
+            Header = "HUD 位置",
+            Menu = positionMenu
+        };
+    }
+
+    private static string CornerLabel(HudCorner corner) => corner switch
+    {
+        HudCorner.TopLeft => "左上角",
+        HudCorner.BottomRight => "右下角",
+        HudCorner.BottomLeft => "左下角",
+        _ => "右上角"
+    };
 
     private static string Truncate(string text, int maxLength)
     {

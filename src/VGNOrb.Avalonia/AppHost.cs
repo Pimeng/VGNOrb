@@ -67,6 +67,7 @@ public sealed class AppHost : IDisposable
                 Dispatcher.UIThread,
                 batteryLevelCache);
             _viewModel.AlwaysOnTop = _settings.AlwaysOnTop;
+            _viewModel.HudCorner = _settings.HudCorner;
             _viewModel.PropertyChanged += OnViewModelPropertyChanged;
 
             _hudController = new DeviceHudController(_viewModel);
@@ -111,6 +112,11 @@ public sealed class AppHost : IDisposable
             _settings = _settings with { AlwaysOnTop = _viewModel.AlwaysOnTop };
             _ = SaveSettingsSafeAsync();
         }
+        else if (e.PropertyName == nameof(OrbViewModel.HudCorner))
+        {
+            _settings = _settings with { HudCorner = _viewModel.HudCorner };
+            _ = SaveSettingsSafeAsync();
+        }
     }
 
     private async Task SaveSettingsSafeAsync()
@@ -136,7 +142,11 @@ public sealed class AppHost : IDisposable
         var snapshot = _settings;
         if (_viewModel is not null)
         {
-            snapshot = snapshot with { AlwaysOnTop = _viewModel.AlwaysOnTop };
+            snapshot = snapshot with
+            {
+                AlwaysOnTop = _viewModel.AlwaysOnTop,
+                HudCorner = _viewModel.HudCorner
+            };
         }
 
         await _saveGate.WaitAsync().ConfigureAwait(false);
