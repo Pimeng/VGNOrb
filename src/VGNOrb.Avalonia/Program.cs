@@ -33,6 +33,19 @@ internal static class Program
     {
         return AppBuilder.Configure<App>()
             .UsePlatformDetect()
+            .With(new Win32PlatformOptions
+            {
+                // WinUI composition paces the HUD at ~33 fps on Windows 11, which
+                // makes the 600 ms spring look like a 30 fps animation. Direct
+                // composition renders on demand and holds the display refresh
+                // rate instead.
+                CompositionMode =
+                [
+                    Win32CompositionMode.DirectComposition,
+                    Win32CompositionMode.WinUIComposition,
+                    Win32CompositionMode.RedirectionSurface
+                ]
+            })
             .LogToTrace();
     }
 

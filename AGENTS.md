@@ -62,6 +62,15 @@ The AOT zip is **not** a single-file executable: `VGNOrb.exe` must stay next to 
   - content fade: 110 ms delay, 220 ms duration
   - hide: 230 ms BackEase, content 90 ms, root 70 + 150 ms
 - The 100% battery label must use the 30 px fallback; other values use 34 px.
+- The spring is sampled by `DeviceHudWindow.FrameClockLoop`, a dedicated clock
+  that ticks at the primary display refresh rate (120/144/200 Hz). Do not move it
+  back to a `DispatcherTimer` (Win32 dispatcher timers are serviced by `WM_TIMER`
+  and quantized to the 15.625 ms system tick, which turns a 16 ms interval into a
+  31.25 ms one) or to `TopLevel.RequestAnimationFrame` (it invokes synchronously
+  under direct composition).
+- Keep `Win32PlatformOptions.CompositionMode` preferring `DirectComposition`:
+  WinUI composition paces composition at roughly 33 fps on Windows 11, which is
+  what made the HUD look like a 30 fps animation.
 - Prefer the existing Avalonia `DeviceRow`, `BatteryRing` and `DeviceHudController` rather than adding a second rendering path.
 
 ## View models and threading

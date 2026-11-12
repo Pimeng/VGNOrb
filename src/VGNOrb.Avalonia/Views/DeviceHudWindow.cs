@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
@@ -25,9 +26,17 @@ public sealed class DeviceHudWindow : Window
     private readonly DeviceRow _singleRow;
     private readonly DeviceRow _dualPrimaryRow;
     private readonly DeviceRow _dualSecondaryRow;
-    private readonly DispatcherTimer _animationTimer;
+    private readonly DispatcherTimer _watchdogTimer;
     private readonly Stopwatch _animationClock = new();
+    private readonly AutoResetEvent _frameClockWake = new(false);
+    private readonly Action _frameTick;
 
+    private Thread? _frameClockThread;
+    private volatile bool _frameClockRunning;
+    private int _framePending;
+    private int _timerResolutionHeld;
+    private long _lastFrameTimestamp;
+    private volatile int _frameIntervalMilliseconds = 16;
     private bool _isAnimating;
     private bool _isHiding;
     private double _startWidth;
@@ -104,11 +113,18 @@ public sealed class DeviceHudWindow : Window
         Content = _root;
         ApplyCorner(_viewModel.HudCorner);
 
-        _animationTimer = new DispatcherTimer
+        // The spring is driven by a dedicated high resolution clock at the
+        // display refresh rate. Neither a DispatcherTimer (WM_TIMER is quantized
+        // to the 15.6 ms system tick) nor TopLevel.RequestAnimationFrame (which
+        // spins synchronously with direct composition) can sample the elapsed
+        // time curve often enough for a 120-200 Hz panel.
+        _watchdogTimer = new DispatcherTimer
         {
-            Interval = TimeSpan.FromMilliseconds(16)
+            Interval = TimeSpan.FromMilliseconds(150)
         };
-        _animationTimer.Tick += OnAnimationTick;
+        _watchdogTimer.Tick += OnWatchdogTick;
+        _frameTick = OnFrameTick;
+        Closed += (_, _) => StopAnimation();
 
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
         _viewModel.Devices.CollectionChanged += OnDevicesCollectionChanged;
@@ -138,15 +154,13 @@ public sealed class DeviceHudWindow : Window
         StopAnimation();
 
         _isHiding = false;
-        _isAnimating = true;
         _startWidth = _card.Width;
         _startHeight = _card.Height;
         _targetWidth = ExpandedWidth;
         _targetHeight = _viewModel.HudHeight;
         _startRootOpacity = _root.Opacity;
         _startContentOpacity = _content.Opacity;
-        _animationClock.Restart();
-        _animationTimer.Start();
+        StartAnimation();
     }
 
     public void PlayHideAnimation(Action onCompleted)
@@ -155,7 +169,6 @@ public sealed class DeviceHudWindow : Window
         StopAnimation();
 
         _isHiding = true;
-        _isAnimating = true;
         _startWidth = _card.Width;
         _startHeight = _card.Height;
         _targetWidth = CollapsedWidth;
@@ -163,15 +176,18 @@ public sealed class DeviceHudWindow : Window
         _startRootOpacity = _root.Opacity;
         _startContentOpacity = _content.Opacity;
         _hideCompleted = onCompleted;
-        _animationClock.Restart();
-        _animationTimer.Start();
+        StartAnimation();
     }
 
     public void StopAnimation()
     {
-        _animationTimer.Stop();
-        _animationClock.Stop();
         _isAnimating = false;
+        Interlocked.Exchange(ref _framePending, 0);
+        _frameClockRunning = false;
+        _frameClockWake.Set();
+        ReleaseHighResolutionTimer();
+        _watchdogTimer.Stop();
+        _animationClock.Stop();
         _hideCompleted = null;
     }
 
@@ -217,8 +233,174 @@ public sealed class DeviceHudWindow : Window
     private const double ContentHideDurationMs = 90;
     private const double RootHideDelayMs = 70;
     private const double RootHideDurationMs = 150;
+    private const int VRefreshIndex = 116;
 
-    private void OnAnimationTick(object? sender, EventArgs e)
+    private static int FrameIntervalMilliseconds()
+    {
+        var refresh = ReadDisplayRefreshRate();
+        return Math.Clamp((int)Math.Round(1000.0 / refresh), 4, 16);
+    }
+
+    /// <summary>
+    /// VREFRESH of the primary display. The HUD always docks to the primary
+    /// work area, so the primary refresh rate is the cadence to match.
+    /// </summary>
+    private static int ReadDisplayRefreshRate()
+    {
+        var deviceContext = GetDC(IntPtr.Zero);
+        if (deviceContext == IntPtr.Zero)
+        {
+            return 60;
+        }
+
+        try
+        {
+            var refresh = GetDeviceCaps(deviceContext, VRefreshIndex);
+            return refresh is >= 60 and <= 480 ? refresh : 60;
+        }
+        finally
+        {
+            ReleaseDC(IntPtr.Zero, deviceContext);
+        }
+    }
+
+    private void AcquireHighResolutionTimer()
+    {
+        if (Interlocked.Exchange(ref _timerResolutionHeld, 1) == 0)
+        {
+            TimeBeginPeriod(1);
+        }
+    }
+
+    private void ReleaseHighResolutionTimer()
+    {
+        if (Interlocked.Exchange(ref _timerResolutionHeld, 0) == 1)
+        {
+            TimeEndPeriod(1);
+        }
+    }
+
+    [DllImport("winmm.dll", EntryPoint = "timeBeginPeriod")]
+    private static extern uint TimeBeginPeriod(uint milliseconds);
+
+    [DllImport("winmm.dll", EntryPoint = "timeEndPeriod")]
+    private static extern uint TimeEndPeriod(uint milliseconds);
+
+    [DllImport("gdi32.dll")]
+    private static extern int GetDeviceCaps(IntPtr deviceContext, int index);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetDC(IntPtr window);
+
+    [DllImport("user32.dll")]
+    private static extern int ReleaseDC(IntPtr window, IntPtr deviceContext);
+
+    private void StartAnimation()
+    {
+        _isAnimating = true;
+        Interlocked.Exchange(ref _framePending, 0);
+        _animationClock.Restart();
+        _lastFrameTimestamp = Stopwatch.GetTimestamp();
+        _watchdogTimer.Start();
+        StartFrameClock();
+        AdvanceAnimation();
+    }
+
+    private void StartFrameClock()
+    {
+        AcquireHighResolutionTimer();
+        _frameIntervalMilliseconds = FrameIntervalMilliseconds();
+        if (_frameClockRunning)
+        {
+            return;
+        }
+
+        _frameClockRunning = true;
+        if (_frameClockThread is null)
+        {
+            _frameClockThread = new Thread(FrameClockLoop)
+            {
+                IsBackground = true,
+                Name = "VGN Orb HUD frame clock"
+            };
+            _frameClockThread.Start();
+        }
+        else
+        {
+            _frameClockWake.Set();
+        }
+    }
+
+    /// <summary>
+    /// Posts one animation frame per display refresh interval and skips a beat
+    /// while the UI thread is still busy with the previous one, so a slow frame
+    /// can never queue up a backlog of stale spring positions.
+    /// </summary>
+    private void FrameClockLoop()
+    {
+        while (true)
+        {
+            if (!_frameClockRunning)
+            {
+                _frameClockWake.WaitOne();
+                continue;
+            }
+
+            var start = Stopwatch.GetTimestamp();
+            if (Interlocked.CompareExchange(ref _framePending, 1, 0) == 0)
+            {
+                Dispatcher.UIThread.Post(_frameTick, DispatcherPriority.Render);
+            }
+
+            var interval = _frameIntervalMilliseconds;
+            var spentMilliseconds = (Stopwatch.GetTimestamp() - start) * 1000.0 / Stopwatch.Frequency;
+            var wait = (int)Math.Ceiling(interval - spentMilliseconds);
+            if (wait > 0)
+            {
+                _frameClockWake.WaitOne(wait);
+            }
+        }
+    }
+
+    private void OnFrameTick()
+    {
+        Interlocked.Exchange(ref _framePending, 0);
+        if (!_isAnimating)
+        {
+            return;
+        }
+
+        _lastFrameTimestamp = Stopwatch.GetTimestamp();
+        AdvanceAnimation();
+    }
+
+    /// <summary>
+    /// Safety net: the frame clock stops when the window is no longer composited
+    /// (fully covered, session locked, display asleep). Letting the animation
+    /// continue from the elapsed clock avoids a HUD frozen mid-spring or left
+    /// half transparent when composition resumes.
+    /// </summary>
+    private void OnWatchdogTick(object? sender, EventArgs e)
+    {
+        if (!_isAnimating)
+        {
+            _watchdogTimer.Stop();
+            return;
+        }
+
+        var stalledMilliseconds =
+            (Stopwatch.GetTimestamp() - _lastFrameTimestamp) * 1000.0 / Stopwatch.Frequency;
+        if (stalledMilliseconds < 150)
+        {
+            return;
+        }
+
+        Interlocked.Exchange(ref _framePending, 0);
+        _lastFrameTimestamp = Stopwatch.GetTimestamp();
+        AdvanceAnimation();
+    }
+
+    private void AdvanceAnimation()
     {
         var elapsed = _animationClock.Elapsed.TotalMilliseconds;
 
@@ -249,9 +431,7 @@ public sealed class DeviceHudWindow : Window
             _root.Opacity = 0;
             _content.Opacity = 0;
             var completed = _hideCompleted;
-            _animationTimer.Stop();
-            _isAnimating = false;
-            _hideCompleted = null;
+            StopAnimation();
             completed?.Invoke();
             return;
         }
@@ -278,8 +458,7 @@ public sealed class DeviceHudWindow : Window
         _card.Height = _targetHeight;
         _root.Opacity = 1;
         _content.Opacity = 1;
-        _animationTimer.Stop();
-        _isAnimating = false;
+        StopAnimation();
     }
 
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
