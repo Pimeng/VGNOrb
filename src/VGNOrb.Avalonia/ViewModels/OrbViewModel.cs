@@ -50,6 +50,9 @@ public partial class OrbViewModel : ObservableObject, IAsyncDisposable
     private bool _alwaysOnTop = true;
 
     [ObservableProperty]
+    private bool _verticalSync = true;
+
+    [ObservableProperty]
     private HudCorner _hudCorner = HudCorner.TopRight;
 
     [ObservableProperty]

@@ -26,19 +26,16 @@ public sealed class AppSettingsStore
 
         try
         {
-            await using var stream = new FileStream(
-                FilePath,
-                FileMode.Open,
-                FileAccess.Read,
-                FileShare.Read,
-                bufferSize: 4096,
-                FileOptions.Asynchronous | FileOptions.SequentialScan);
-
-            var settings = await JsonSerializer
-                .DeserializeAsync(stream, AppSettingsJsonContext.Default.AppSettings, cancellationToken)
+            var json = await File
+                .ReadAllTextAsync(FilePath, cancellationToken)
                 .ConfigureAwait(false);
 
-            return (settings ?? new AppSettings()).Normalize();
+            using var document = JsonDocument.Parse(json);
+            var settings = JsonSerializer.Deserialize(
+                document.RootElement,
+                AppSettingsJsonContext.Default.AppSettings) ?? new AppSettings();
+
+            return RestoreMissingDefaults(document.RootElement, settings).Normalize();
         }
         catch (OperationCanceledException)
         {
@@ -85,6 +82,56 @@ public sealed class AppSettingsStore
             TryDelete(temporaryPath);
             throw;
         }
+    }
+
+    /// <summary>
+    /// The source-generated deserializer assigns <c>default(T)</c> to members that
+    /// are absent from the file instead of keeping their declared initializer, so
+    /// a settings file written by an older build silently turns every default-true
+    /// flag off. Restore the declared defaults for keys the file does not contain.
+    /// </summary>
+    private static AppSettings RestoreMissingDefaults(JsonElement root, AppSettings settings)
+    {
+        if (root.ValueKind != JsonValueKind.Object)
+        {
+            return new AppSettings();
+        }
+
+        var defaults = new AppSettings();
+        return settings with
+        {
+            AlwaysOnTop = ReadBoolean(root, "alwaysOnTop") ?? defaults.AlwaysOnTop,
+            AutoConnectDevice = ReadBoolean(root, "autoConnectDevice") ?? defaults.AutoConnectDevice,
+            PreferHardware = ReadBoolean(root, "preferHardware") ?? defaults.PreferHardware,
+            VerticalSync = ReadBoolean(root, "verticalSync") ?? defaults.VerticalSync,
+            PollIntervalMilliseconds = ReadInt32(root, "pollIntervalMilliseconds")
+                ?? defaults.PollIntervalMilliseconds,
+            HudCorner = root.TryGetProperty("hudCorner", out _) ? settings.HudCorner : defaults.HudCorner
+        };
+    }
+
+    private static bool? ReadBoolean(JsonElement root, string name)
+    {
+        if (!root.TryGetProperty(name, out var value))
+        {
+            return null;
+        }
+
+        return value.ValueKind switch
+        {
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            _ => null
+        };
+    }
+
+    private static int? ReadInt32(JsonElement root, string name)
+    {
+        return root.TryGetProperty(name, out var value)
+            && value.ValueKind == JsonValueKind.Number
+            && value.TryGetInt32(out var number)
+            ? number
+            : null;
     }
 
     private static void TryDelete(string path)

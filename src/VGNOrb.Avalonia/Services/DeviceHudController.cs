@@ -35,7 +35,8 @@ public sealed class DeviceHudController : IDisposable
         _hud = new DeviceHudWindow(viewModel)
         {
             ShowActivated = false,
-            Topmost = viewModel.AlwaysOnTop
+            Topmost = viewModel.AlwaysOnTop,
+            VerticalSync = viewModel.VerticalSync
         };
         _hotCorner = new HotCornerWindow
         {
@@ -91,6 +92,9 @@ public sealed class DeviceHudController : IDisposable
         {
             case nameof(OrbViewModel.AlwaysOnTop):
                 _hud.Topmost = _viewModel.AlwaysOnTop;
+                break;
+            case nameof(OrbViewModel.VerticalSync):
+                _hud.VerticalSync = _viewModel.VerticalSync;
                 break;
             case nameof(OrbViewModel.HudCorner):
                 ApplyHudCorner();

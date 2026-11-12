@@ -18,6 +18,7 @@ public sealed class AppSettingsStoreTests
                 AutoConnectDevice = false,
                 PreferHardware = false,
                 PollIntervalMilliseconds = 7500,
+                VerticalSync = false,
                 HudCorner = HudCorner.BottomLeft
             };
 
@@ -28,6 +29,7 @@ public sealed class AppSettingsStoreTests
             Assert.Equal(settings, loaded);
             var json = await File.ReadAllTextAsync(path);
             Assert.Contains(@"""alwaysOnTop"": false", json);
+            Assert.Contains(@"""verticalSync"": false", json);
             Assert.Contains(@"""hudCorner"": ""BottomLeft""", json);
         }
         finally
@@ -69,6 +71,31 @@ public sealed class AppSettingsStoreTests
             var loaded = await store.LoadAsync();
 
             Assert.Equal(HudCorner.TopRight, loaded.HudCorner);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task Load_WithMissingKeys_KeepsDeclaredDefaults()
+    {
+        var directory = CreateTemporaryDirectory();
+        try
+        {
+            var path = Path.Combine(directory, "settings.json");
+            await File.WriteAllTextAsync(path, """{ "alwaysOnTop": false }""");
+            var store = new AppSettingsStore(path);
+
+            var loaded = await store.LoadAsync();
+
+            Assert.False(loaded.AlwaysOnTop);
+            Assert.True(loaded.AutoConnectDevice);
+            Assert.True(loaded.PreferHardware);
+            Assert.True(loaded.VerticalSync);
+            Assert.Equal(HudCorner.TopRight, loaded.HudCorner);
+            Assert.Equal(5000, loaded.PollIntervalMilliseconds);
         }
         finally
         {

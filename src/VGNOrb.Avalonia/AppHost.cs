@@ -67,6 +67,7 @@ public sealed class AppHost : IDisposable
                 Dispatcher.UIThread,
                 batteryLevelCache);
             _viewModel.AlwaysOnTop = _settings.AlwaysOnTop;
+            _viewModel.VerticalSync = _settings.VerticalSync;
             _viewModel.HudCorner = _settings.HudCorner;
             _viewModel.PropertyChanged += OnViewModelPropertyChanged;
 
@@ -112,6 +113,11 @@ public sealed class AppHost : IDisposable
             _settings = _settings with { AlwaysOnTop = _viewModel.AlwaysOnTop };
             _ = SaveSettingsSafeAsync();
         }
+        else if (e.PropertyName == nameof(OrbViewModel.VerticalSync))
+        {
+            _settings = _settings with { VerticalSync = _viewModel.VerticalSync };
+            _ = SaveSettingsSafeAsync();
+        }
         else if (e.PropertyName == nameof(OrbViewModel.HudCorner))
         {
             _settings = _settings with { HudCorner = _viewModel.HudCorner };
@@ -145,6 +151,7 @@ public sealed class AppHost : IDisposable
             snapshot = snapshot with
             {
                 AlwaysOnTop = _viewModel.AlwaysOnTop,
+                VerticalSync = _viewModel.VerticalSync,
                 HudCorner = _viewModel.HudCorner
             };
         }

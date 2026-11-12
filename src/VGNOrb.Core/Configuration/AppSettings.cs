@@ -10,6 +10,14 @@ public sealed record AppSettings
 
     public bool PreferHardware { get; init; } = true;
 
+    /// <summary>
+    /// Samples the HUD spring at the display refresh rate. Disable it to sample
+    /// as fast as the frame clock allows, up to <see cref="MaxSamplingRate"/>.
+    /// </summary>
+    public bool VerticalSync { get; init; } = true;
+
+    public const int MaxSamplingRate = 1000;
+
     public int PollIntervalMilliseconds { get; init; } = 5000;
 
     [JsonConverter(typeof(JsonStringEnumConverter<HudCorner>))]

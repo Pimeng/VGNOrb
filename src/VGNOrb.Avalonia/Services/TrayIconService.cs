@@ -152,6 +152,12 @@ public sealed class TrayIconService : IDisposable
         };
         alwaysOnTop.Click += (_, _) => _viewModel.AlwaysOnTop = !_viewModel.AlwaysOnTop;
         menu.Add(alwaysOnTop);
+        var verticalSync = new NativeMenuItem
+        {
+            Header = _viewModel.VerticalSync ? "垂直同步 ✓" : "垂直同步"
+        };
+        verticalSync.Click += (_, _) => _viewModel.VerticalSync = !_viewModel.VerticalSync;
+        menu.Add(verticalSync);
         menu.Add(new NativeMenuItemSeparator());
         var exit = new NativeMenuItem { Header = "退出 VGN Orb" };
         exit.Click += (_, _) => _exit();

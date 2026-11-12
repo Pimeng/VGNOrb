@@ -85,6 +85,10 @@ The AOT zip is **not** a single-file executable: `VGNOrb.exe` must stay next to 
 - Settings live at `%APPDATA%\VGNOrb\settings.json`.
 - Serialization uses the source-generated `AppSettingsJsonContext`. Do not switch back to reflection-based `JsonSerializer` overloads; that breaks Native AOT.
 - Preserve the 1000–60000 ms polling clamp.
+- `verticalSync` (default `true`) samples the spring at the display refresh
+  rate; `false` samples as fast as the frame clock allows, capped at
+  `AppSettings.MaxSamplingRate` (1000 Hz). It is toggled from the tray menu and
+  must survive restarts like the other display settings.
 - `hudCorner` accepts `TopRight` (default), `TopLeft`, `BottomRight` and `BottomLeft`; unknown values normalize back to `TopRight`.
 
 ## Device and protocol rules

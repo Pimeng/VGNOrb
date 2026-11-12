@@ -39,6 +39,7 @@ public sealed class DeviceHudWindow : Window
     private volatile int _frameIntervalMilliseconds = 16;
     private bool _isAnimating;
     private bool _isHiding;
+    private bool _verticalSync = true;
     private double _startWidth;
     private double _startHeight;
     private double _targetWidth;
@@ -132,6 +133,26 @@ public sealed class DeviceHudWindow : Window
     }
 
     public double WindowHeight => _viewModel.HudHeight + 16;
+
+    /// <summary>
+    /// Locks the spring sampling to the display refresh rate. With it disabled
+    /// the frame clock runs as fast as it can, capped at
+    /// <see cref="AppSettings.MaxSamplingRate"/> samples per second.
+    /// </summary>
+    public bool VerticalSync
+    {
+        get => _verticalSync;
+        set
+        {
+            if (_verticalSync == value)
+            {
+                return;
+            }
+
+            _verticalSync = value;
+            _frameIntervalMilliseconds = FrameIntervalMilliseconds();
+        }
+    }
 
     /// <summary>
     /// Anchors the card to the configured screen corner, rounds the corner that
@@ -235,10 +256,16 @@ public sealed class DeviceHudWindow : Window
     private const double RootHideDurationMs = 150;
     private const int VRefreshIndex = 116;
 
-    private static int FrameIntervalMilliseconds()
+    private int FrameIntervalMilliseconds()
     {
+        if (!VerticalSync)
+        {
+            return Math.Max(1, 1000 / AppSettings.MaxSamplingRate);
+        }
+
         var refresh = ReadDisplayRefreshRate();
-        return Math.Clamp((int)Math.Round(1000.0 / refresh), 4, 16);
+        var interval = Math.Clamp((int)Math.Round(1000.0 / refresh), 4, 16);
+        return Math.Max(interval, 1000 / AppSettings.MaxSamplingRate);
     }
 
     /// <summary>
