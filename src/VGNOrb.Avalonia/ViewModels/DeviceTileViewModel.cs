@@ -306,6 +306,9 @@ public partial class DeviceTileViewModel : ObservableObject, IAsyncDisposable
             {
                 if (IsConnected)
                 {
+                    // The adapter has already released its HID handle; mark the
+                    // row disconnected so the next plug/unplug sync reconnects it.
+                    IsConnected = false;
                     ConnectionText = "设备异常";
                     StatusText = "设备进入异常状态，请重新发现设备。";
                 }

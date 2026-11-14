@@ -108,8 +108,7 @@ public sealed class VgnKeyboardDevice : IDevice
             }
             catch
             {
-                CloseStream();
-                SetState(DeviceConnectionState.Faulted);
+                Fault();
                 throw;
             }
         }
@@ -160,7 +159,7 @@ public sealed class VgnKeyboardDevice : IDevice
 
             if (!VgnKeyboardProtocol.TryParseBattery(report, out var reading))
             {
-                SetState(DeviceConnectionState.Faulted);
+                Fault();
                 throw new InvalidDataException("VGN 键盘电量响应格式无效。");
             }
 
@@ -174,14 +173,11 @@ public sealed class VgnKeyboardDevice : IDevice
                 reading.IsCharging,
                 DateTimeOffset.UtcNow);
         }
-        catch (TimeoutException)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            SetState(DeviceConnectionState.Faulted);
-            throw;
-        }
-        catch (IOException)
-        {
-            SetState(DeviceConnectionState.Faulted);
+            // Any I/O failure, including HidSharp reporting the handle closed
+            // after an unplug, releases the handle instead of keeping it open.
+            Fault();
             throw;
         }
         finally
@@ -308,6 +304,19 @@ public sealed class VgnKeyboardDevice : IDevice
         }
 
         throw new TimeoutException($"VGN 键盘 HID 命令 0x{command:X2} 超时。");
+    }
+
+    /// <summary>
+    /// Marks the device faulted and releases the HID handle at once. A handle
+    /// left open on a device that timed out or was unplugged keeps the old
+    /// device node pending removal; Windows then cannot start the replugged
+    /// receiver or cable, which also takes down the keyboard and mouse
+    /// collections of the same USB device.
+    /// </summary>
+    private void Fault()
+    {
+        CloseStream();
+        SetState(DeviceConnectionState.Faulted);
     }
 
     private void CloseStream()

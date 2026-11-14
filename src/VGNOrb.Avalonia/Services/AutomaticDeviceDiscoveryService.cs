@@ -39,7 +39,11 @@ public sealed class AutomaticDeviceDiscoveryService : IDeviceDiscoveryService
         {
             try
             {
-                var discovered = await source.DiscoverAsync(cancellationToken).ConfigureAwait(false);
+                // HID enumeration opens every collection to read its report
+                // descriptor; keep that blocking work off the UI thread.
+                var discovered = await Task.Run(
+                    () => source.DiscoverAsync(cancellationToken),
+                    cancellationToken).ConfigureAwait(false);
                 foreach (var descriptor in discovered)
                 {
                     if (_routes.TryAdd(descriptor.Id, source))
@@ -81,7 +85,11 @@ public sealed class AutomaticDeviceDiscoveryService : IDeviceDiscoveryService
 
         if (_routes.TryGetValue(descriptor.Id, out var discovery))
         {
-            return discovery.ConnectAsync(descriptor, cancellationToken);
+            // Opening a HID handle can block while Windows is still starting
+            // the device; never do it on the UI thread.
+            return Task.Run(
+                () => discovery.ConnectAsync(descriptor, cancellationToken),
+                cancellationToken);
         }
 
         throw new InvalidOperationException("设备描述已过期，请重新发现设备。");

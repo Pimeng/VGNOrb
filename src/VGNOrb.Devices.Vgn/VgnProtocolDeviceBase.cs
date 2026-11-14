@@ -89,10 +89,11 @@ public abstract class VgnProtocolDeviceBase : IDevice
                     throw new IOException("无法打开 VGN HID 设备；设备可能被其他程序独占。");
                 }
 
+                // Store the stream first so a failure below still closes it.
+                Volatile.Write(ref _stream, stream);
                 stream.ReadTimeout = 1000;
                 stream.WriteTimeout = 1000;
                 _maxInputReportLength = Math.Max(HidDevice.GetMaxInputReportLength(), 8);
-                Volatile.Write(ref _stream, stream);
 
                 SetState(DeviceConnectionState.Connected);
             }
@@ -104,8 +105,7 @@ public abstract class VgnProtocolDeviceBase : IDevice
             }
             catch
             {
-                CloseStream();
-                SetState(DeviceConnectionState.Faulted);
+                Fault();
                 throw;
             }
         }
@@ -157,19 +157,11 @@ public abstract class VgnProtocolDeviceBase : IDevice
 
             return report;
         }
-        catch (TimeoutException)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            SetState(DeviceConnectionState.Faulted);
-            throw;
-        }
-        catch (IOException)
-        {
-            SetState(DeviceConnectionState.Faulted);
-            throw;
-        }
-        catch (InvalidDataException)
-        {
-            SetState(DeviceConnectionState.Faulted);
+            // Any I/O failure, including HidSharp reporting the handle closed
+            // after an unplug, releases the handle instead of keeping it open.
+            Fault();
             throw;
         }
         finally
@@ -304,6 +296,19 @@ public abstract class VgnProtocolDeviceBase : IDevice
         {
             return 65;
         }
+    }
+
+    /// <summary>
+    /// Marks the device faulted and releases the HID handle at once. A handle
+    /// left open on a device that timed out or was unplugged keeps the old
+    /// device node pending removal; Windows then cannot start the replugged
+    /// receiver or cable, which also takes down the keyboard and mouse
+    /// collections of the same USB device.
+    /// </summary>
+    private void Fault()
+    {
+        CloseStream();
+        SetState(DeviceConnectionState.Faulted);
     }
 
     private void CloseStream()

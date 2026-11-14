@@ -17,6 +17,8 @@ namespace VGNOrb.Avalonia;
 
 public sealed class AppHost : IDisposable
 {
+    private static readonly TimeSpan ShutdownTimeout = TimeSpan.FromSeconds(5);
+
     private readonly IClassicDesktopStyleApplicationLifetime _desktop;
     private readonly SemaphoreSlim _saveGate = new(1, 1);
     private AppSettingsStore? _settingsStore;
@@ -182,11 +184,17 @@ public sealed class AppHost : IDisposable
 
         _isShuttingDown = true;
 
+        // Stop reacting to plug/unplug before the device handles are released.
+        _deviceChanges?.Dispose();
+        _deviceChanges = null;
+
         try
         {
             if (_viewModel is not null)
             {
-                await _viewModel.DisposeAsync();
+                // A HID call stuck in the driver must not keep the process (and
+                // its open device handles) alive after the user chose Exit.
+                await _viewModel.DisposeAsync().AsTask().WaitAsync(ShutdownTimeout);
             }
 
             await SaveSettingsAsync();
