@@ -22,6 +22,7 @@ public sealed class AppHost : IDisposable
     private AppSettingsStore? _settingsStore;
     private AppSettings _settings = new();
     private OrbViewModel? _viewModel;
+    private HidDeviceChangeNotifier? _deviceChanges;
     private DeviceHudController? _hudController;
     private TrayIconService? _trayIcon;
     private bool _isShuttingDown;
@@ -61,11 +62,14 @@ public sealed class AppHost : IDisposable
                     mockDiscovery)
                 : mockDiscovery;
 
+            _deviceChanges = _settings.PreferHardware ? new HidDeviceChangeNotifier() : null;
+
             _viewModel = new OrbViewModel(
                 discovery,
                 _settings.PollIntervalMilliseconds,
                 Dispatcher.UIThread,
-                batteryLevelCache);
+                batteryLevelCache,
+                _deviceChanges);
             _viewModel.AlwaysOnTop = _settings.AlwaysOnTop;
             _viewModel.VerticalSync = _settings.VerticalSync;
             _viewModel.HudCorner = _settings.HudCorner;
@@ -95,6 +99,8 @@ public sealed class AppHost : IDisposable
         }
 
         _disposed = true;
+        _deviceChanges?.Dispose();
+        _deviceChanges = null;
         _hudController?.Dispose();
         _hudController = null;
         _trayIcon?.Dispose();

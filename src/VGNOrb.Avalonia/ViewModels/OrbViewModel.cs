@@ -16,19 +16,27 @@ public partial class OrbViewModel : ObservableObject, IAsyncDisposable
 {
     public const int MaxDevices = 2;
 
+    // Plugging in a cable or receiver raises several arrival/removal
+    // notifications while Windows enumerates the HID collections, so discovery
+    // waits for the burst to settle.
+    private static readonly TimeSpan DeviceChangeSettleDelay = TimeSpan.FromMilliseconds(1000);
+
     private readonly IDeviceDiscoveryService _discovery;
+    private readonly IDeviceChangeNotifier? _deviceChanges;
     private readonly Dispatcher _dispatcher;
     private readonly BatteryLevelCacheStore? _batteryLevelCache;
     private readonly int _pollIntervalMilliseconds;
     private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
     private readonly CancellationTokenSource _lifetimeCancellation = new();
     private int _disposed;
+    private int _deviceChangeGeneration;
 
     public OrbViewModel(
         IDeviceDiscoveryService discovery,
         int pollIntervalMilliseconds,
         Dispatcher dispatcher,
-        BatteryLevelCacheStore? batteryLevelCache = null)
+        BatteryLevelCacheStore? batteryLevelCache = null,
+        IDeviceChangeNotifier? deviceChanges = null)
     {
         _discovery = discovery ?? throw new ArgumentNullException(nameof(discovery));
         _dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
@@ -36,6 +44,12 @@ public partial class OrbViewModel : ObservableObject, IAsyncDisposable
         _pollIntervalMilliseconds = pollIntervalMilliseconds;
 
         Devices.CollectionChanged += OnDevicesCollectionChanged;
+
+        _deviceChanges = deviceChanges;
+        if (_deviceChanges is not null)
+        {
+            _deviceChanges.DevicesChanged += OnSystemDevicesChanged;
+        }
     }
 
     public ObservableCollection<DeviceTileViewModel> Devices { get; } = [];
@@ -194,6 +208,11 @@ public partial class OrbViewModel : ObservableObject, IAsyncDisposable
             return;
         }
 
+        if (_deviceChanges is not null)
+        {
+            _deviceChanges.DevicesChanged -= OnSystemDevicesChanged;
+        }
+
         _lifetimeCancellation.Cancel();
         try
         {
@@ -211,6 +230,134 @@ public partial class OrbViewModel : ObservableObject, IAsyncDisposable
         {
             _lifetimeCancellation.Dispose();
             _lifecycleGate.Dispose();
+        }
+    }
+
+    private void OnSystemDevicesChanged(object? sender, EventArgs e)
+    {
+        if (Volatile.Read(ref _disposed) != 0)
+        {
+            return;
+        }
+
+        var generation = Interlocked.Increment(ref _deviceChangeGeneration);
+        _ = SyncAfterSettleAsync(generation);
+    }
+
+    private async Task SyncAfterSettleAsync(int generation)
+    {
+        await Task.Delay(DeviceChangeSettleDelay).ConfigureAwait(false);
+
+        // A later notification restarted the settle window.
+        if (generation != Volatile.Read(ref _deviceChangeGeneration)
+            || Volatile.Read(ref _disposed) != 0)
+        {
+            return;
+        }
+
+        try
+        {
+            _dispatcher.Post(() => _ = SyncDevicesAsync(), DispatcherPriority.Background);
+        }
+        catch (InvalidOperationException)
+        {
+            // Dispatcher is shutting down.
+        }
+    }
+
+    /// <summary>
+    /// Reconciles the rows with the devices currently present after a plug or
+    /// unplug: rows whose device disappeared or failed to connect are dropped,
+    /// newly present devices fill the free slots, and rows whose device is
+    /// unchanged keep their connection and polling untouched.
+    /// </summary>
+    private async Task SyncDevicesAsync()
+    {
+        if (Volatile.Read(ref _disposed) != 0)
+        {
+            return;
+        }
+
+        CancellationToken cancellationToken;
+        try
+        {
+            cancellationToken = _lifetimeCancellation.Token;
+            await _lifecycleGate.WaitAsync(cancellationToken);
+        }
+        catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException)
+        {
+            return;
+        }
+
+        SetBusy(true);
+        try
+        {
+            var discovered = await _discovery.DiscoverAsync(cancellationToken);
+            var descriptors = discovered
+                .Where(descriptor => !string.IsNullOrWhiteSpace(descriptor.Id))
+                .DistinctBy(descriptor => descriptor.Id, StringComparer.Ordinal)
+                .ToArray();
+            var presentIds = descriptors
+                .Select(descriptor => descriptor.Id)
+                .ToHashSet(StringComparer.Ordinal);
+
+            var changed = false;
+            foreach (var tile in Devices.ToArray())
+            {
+                if (presentIds.Contains(tile.Id) && tile.IsConnected)
+                {
+                    continue;
+                }
+
+                Devices.Remove(tile);
+                await tile.DisposeAsync();
+                changed = true;
+            }
+
+            var added = new List<DeviceTileViewModel>();
+            foreach (var descriptor in descriptors)
+            {
+                if (Devices.Count >= MaxDevices)
+                {
+                    break;
+                }
+
+                if (Devices.Any(tile => string.Equals(tile.Id, descriptor.Id, StringComparison.Ordinal)))
+                {
+                    continue;
+                }
+
+                var tile = new DeviceTileViewModel(
+                    descriptor,
+                    _pollIntervalMilliseconds,
+                    _dispatcher,
+                    _batteryLevelCache);
+                Devices.Add(tile);
+                added.Add(tile);
+            }
+
+            foreach (var tile in added)
+            {
+                await ConnectTileAsync(tile, cancellationToken);
+            }
+
+            if (changed || added.Count > 0)
+            {
+                UpdateSummary();
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Application shutdown.
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"设备同步失败：{ex.Message}";
+        }
+        finally
+        {
+            SetBusy(false);
+            _lifecycleGate.Release();
         }
     }
 
