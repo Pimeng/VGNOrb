@@ -141,6 +141,7 @@ public sealed class DeviceRow : Canvas
             _identify.Text = string.Empty;
             _percentage.Text = string.Empty;
             _ring.Value = 0;
+            _ring.IsCharging = false;
             return;
         }
 
@@ -149,5 +150,6 @@ public sealed class DeviceRow : Canvas
         _percentage.Text = device.BatteryText;
         _percentage.FontSize = device.BatteryText == "100%" ? 30 : 34;
         _ring.Value = device.IsConnected ? device.BatteryPercent : 0;
+        _ring.IsCharging = device.IsConnected && device.IsCharging;
     }
 }
