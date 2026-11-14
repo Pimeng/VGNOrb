@@ -173,7 +173,7 @@ public sealed class AppHost : IDisposable
         }
     }
 
-    private async void RequestShutdown()
+    public async void RequestShutdown()
     {
         if (_isShuttingDown)
         {

@@ -6,10 +6,24 @@ namespace VGNOrb.Avalonia;
 internal static class Program
 {
     private const uint MessageBoxIconError = 0x00000010;
+    private const int AttachParentProcess = -1;
+
+    /// <summary>
+    /// True when a Debug build attached to the terminal that launched it
+    /// (for example <c>dotnet run</c>), so Ctrl+C can reach this GUI process.
+    /// </summary>
+    internal static bool HasParentConsole { get; private set; }
 
     [STAThread]
     public static void Main(string[] args)
     {
+#if DEBUG
+        // WinExe processes get no console, so Ctrl+C in the launching terminal
+        // never reaches them and `dotnet run` waits forever. Release builds stay
+        // detached so Ctrl+C at a later shell prompt cannot close the tray app.
+        HasParentConsole = AttachConsole(AttachParentProcess);
+#endif
+
         try
         {
             BuildAvaloniaApp()
@@ -86,6 +100,10 @@ internal static class Program
 
     [DllImport("user32.dll", EntryPoint = "MessageBoxW", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern int MessageBoxW(IntPtr hWnd, string text, string caption, uint type);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool AttachConsole(int processId);
 
     /// <summary>
     /// Framework initialization failures happen before AppHost can show its own
