@@ -29,22 +29,30 @@ public sealed class TrayMenuWindow : Window
     private const double ShadowRight = 10;
     private const double ShadowBottom = 14;
     private const double ScreenEdgeMargin = 8;
-    private const double IconColumnWidth = 20;
+    private const double IconColumnWidth = 18;
+    private const double MenuItemHeight = 30;
 
     private static readonly FontFamily FluentFont = new("Segoe UI Variable Text, Microsoft YaHei UI, Segoe UI");
-    private static readonly IBrush CardBackground = new SolidColorBrush(Color.Parse("#F52C2C2C"));
-    private static readonly IBrush CardBorderBrush = new SolidColorBrush(Color.Parse("#1FFFFFFF"));
-    private static readonly IBrush HoverBackground = new SolidColorBrush(Color.Parse("#11FFFFFF"));
+    private static readonly IBrush CardBackground = new SolidColorBrush(Color.Parse("#F52B2B2B"));
+    private static readonly IBrush CardBorderBrush = new SolidColorBrush(Color.Parse("#24FFFFFF"));
+    private static readonly IBrush DeviceCardBackground = new SolidColorBrush(Color.Parse("#0AFFFFFF"));
+    private static readonly IBrush DeviceCardBorderBrush = new SolidColorBrush(Color.Parse("#0EFFFFFF"));
+    private static readonly IBrush HoverBackground = new SolidColorBrush(Color.Parse("#12FFFFFF"));
     private static readonly IBrush PressedBackground = new SolidColorBrush(Color.Parse("#0AFFFFFF"));
     private static readonly IBrush SeparatorBrush = new SolidColorBrush(Color.Parse("#14FFFFFF"));
-    private static readonly IBrush PrimaryTextBrush = new SolidColorBrush(Color.Parse("#FFFFFF"));
-    private static readonly IBrush SecondaryTextBrush = new SolidColorBrush(Color.Parse("#94FFFFFF"));
-    private static readonly IBrush DeviceNameBrush = new SolidColorBrush(Color.Parse("#E6FFFFFF"));
-    private static readonly IBrush DeviceIconBrush = new SolidColorBrush(Color.Parse("#B3FFFFFF"));
-    private static readonly IBrush ItemIconBrush = new SolidColorBrush(Color.Parse("#E0FFFFFF"));
-    private static readonly IBrush DisabledTextBrush = new SolidColorBrush(Color.Parse("#60FFFFFF"));
-    private static readonly IBrush ChevronBrush = new SolidColorBrush(Color.Parse("#99FFFFFF"));
-    private static readonly BoxShadows CardShadows = BoxShadows.Parse("0 8 20 0 #66000000, 0 2 5 0 #33000000");
+    private static readonly IBrush PrimaryTextBrush = new SolidColorBrush(Color.Parse("#F2FFFFFF"));
+    private static readonly IBrush SecondaryTextBrush = new SolidColorBrush(Color.Parse("#8CFFFFFF"));
+    private static readonly IBrush SubtleCaptionBrush = new SolidColorBrush(Color.Parse("#6EFFFFFF"));
+    private static readonly IBrush DeviceNameBrush = new SolidColorBrush(Color.Parse("#F0FFFFFF"));
+    private static readonly IBrush DeviceIconBrush = new SolidColorBrush(Color.Parse("#C4FFFFFF"));
+    private static readonly IBrush BatteryNormalBrush = new SolidColorBrush(Color.Parse("#B8FFFFFF"));
+    private static readonly IBrush BatteryChargingBrush = new SolidColorBrush(Color.Parse("#6CCB5F"));
+    private static readonly IBrush BatteryLowBrush = new SolidColorBrush(Color.Parse("#FCE100"));
+    private static readonly IBrush BatteryCriticalBrush = new SolidColorBrush(Color.Parse("#FF99A4"));
+    private static readonly IBrush ItemIconBrush = new SolidColorBrush(Color.Parse("#D9FFFFFF"));
+    private static readonly IBrush DisabledTextBrush = new SolidColorBrush(Color.Parse("#59FFFFFF"));
+    private static readonly IBrush ChevronBrush = new SolidColorBrush(Color.Parse("#8CFFFFFF"));
+    private static readonly BoxShadows CardShadows = BoxShadows.Parse("0 8 22 0 #6B000000, 0 2 6 0 #38000000");
 
     // 16x16 viewBox stroke-based Fluent icon geometries.
     private static readonly Geometry MouseIconGeometry = Geometry.Parse(
@@ -54,19 +62,25 @@ public sealed class TrayMenuWindow : Window
     private static readonly Geometry DeviceIconGeometry = Geometry.Parse(
         "M3,3.5 L13,3.5 C13.6,3.5 14,3.9 14,4.5 L14,11.5 C14,12.1 13.6,12.5 13,12.5 L3,12.5 C2.4,12.5 2,12.1 2,11.5 L2,4.5 C2,3.9 2.4,3.5 3,3.5 Z");
     private static readonly Geometry RefreshIconGeometry = Geometry.Parse(
-        "M13,8 A5,5 0 1 1 11.4,4.3 M12,2.2 L12,5 L9.2,5");
-    private static readonly Geometry ReconnectIconGeometry = Geometry.Parse(
-        "M3.5,6 A4.8,4.8 0 0 1 12.1,4.6 M12.5,2.5 L12.5,5.1 L9.9,5.1 M12.5,10 A4.8,4.8 0 0 1 3.9,11.4 M3.5,13.5 L3.5,10.9 L6.1,10.9");
+        "M12.8,8 A4.8,4.8 0 1 1 11.4,4.6 M12,2.4 L12,5.1 L9.3,5.1");
+    private static readonly Geometry DiscoverIconGeometry = Geometry.Parse(
+        "M7,2.8 A4.2,4.2 0 1 0 7,11.2 A4.2,4.2 0 1 0 7,2.8 Z M10.2,10.2 L13.4,13.4");
     private static readonly Geometry DisconnectIconGeometry = Geometry.Parse(
-        "M3,3 L13,13 M10.5,5.5 L12.2,3.8 M3.8,12.2 L5.5,10.5 M6.8,6.8 L5.3,8.3 A2.3,2.3 0 0 0 8.5,11.5 L10,10 M9.2,9.2 L10.7,7.7 A2.3,2.3 0 0 0 7.5,4.5 L6,6");
-    private static readonly Geometry CornerIconGeometry = Geometry.Parse(
+        "M8,2.5 A5.5,5.5 0 1 0 8,13.5 A5.5,5.5 0 1 0 8,2.5 Z M4.2,4.2 L11.8,11.8");
+    private static readonly Geometry CornerTopRightGeometry = Geometry.Parse(
         "M2.5,4 C2.5,3.2 3.2,2.5 4,2.5 L12,2.5 C12.8,2.5 13.5,3.2 13.5,4 L13.5,12 C13.5,12.8 12.8,13.5 12,13.5 L4,13.5 C3.2,13.5 2.5,12.8 2.5,12 Z M8.5,5 L11,5 L11,7.5");
+    private static readonly Geometry CornerTopLeftGeometry = Geometry.Parse(
+        "M2.5,4 C2.5,3.2 3.2,2.5 4,2.5 L12,2.5 C12.8,2.5 13.5,3.2 13.5,4 L13.5,12 C13.5,12.8 12.8,13.5 12,13.5 L4,13.5 C3.2,13.5 2.5,12.8 2.5,12 Z M7.5,5 L5,5 L5,7.5");
+    private static readonly Geometry CornerBottomRightGeometry = Geometry.Parse(
+        "M2.5,4 C2.5,3.2 3.2,2.5 4,2.5 L12,2.5 C12.8,2.5 13.5,3.2 13.5,4 L13.5,12 C13.5,12.8 12.8,13.5 12,13.5 L4,13.5 C3.2,13.5 2.5,12.8 2.5,12 Z M8.5,11 L11,11 L11,8.5");
+    private static readonly Geometry CornerBottomLeftGeometry = Geometry.Parse(
+        "M2.5,4 C2.5,3.2 3.2,2.5 4,2.5 L12,2.5 C12.8,2.5 13.5,3.2 13.5,4 L13.5,12 C13.5,12.8 12.8,13.5 12,13.5 L4,13.5 C3.2,13.5 2.5,12.8 2.5,12 Z M7.5,11 L5,11 L5,8.5");
     private static readonly Geometry CheckmarkGeometry = Geometry.Parse(
-        "M3.2,8.4 L6.5,11.6 L12.8,4.6");
+        "M3,8.5 L6.4,11.8 L13,4.4");
     private static readonly Geometry ChevronRightGeometry = Geometry.Parse(
         "M6,3.5 L10.5,8 L6,12.5");
     private static readonly Geometry ExitIconGeometry = Geometry.Parse(
-        "M6.5,2.5 L4,2.5 C3.2,2.5 2.5,3.2 2.5,4 L2.5,12 C2.5,12.8 3.2,13.5 4,13.5 L6.5,13.5 M6.5,8 L13.5,8 M10.8,5.2 L13.5,8 L10.8,10.8");
+        "M6.5,2.5 L4,2.5 C3.2,2.5 2.5,3.2 2.5,4 L2.5,12 C2.5,12.8 3.2,13.5 4,13.5 L6.5,13.5 M6.8,8 L13.5,8 M10.8,5.3 L13.5,8 L10.8,10.7");
     private static readonly Geometry ChargingBoltGeometry = Geometry.Parse(
         "M9.5,1.2 L3.8,8.8 L7.8,8.8 L6.5,14.8 L12.2,7.2 L8.2,7.2 Z");
 
@@ -193,22 +207,8 @@ public sealed class TrayMenuWindow : Window
             Spacing = 0
         };
 
-        // Top device summary section.
-        items.Children.Add(new TextBlock
-        {
-            Text = _viewModel.TraySummary,
-            FontFamily = FluentFont,
-            FontSize = 11.5,
-            Foreground = SecondaryTextBrush,
-            Margin = new Thickness(10, 4, 10, _viewModel.Devices.Count > 0 ? 3 : 4)
-        });
-
-        foreach (var device in _viewModel.Devices)
-        {
-            items.Children.Add(BuildDeviceStatusRow(device));
-        }
-
-        items.Children.Add(CreateSeparator());
+        // Top device status card.
+        items.Children.Add(BuildDeviceSection());
 
         // Device actions.
         items.Children.Add(CreateActionItem(
@@ -219,7 +219,7 @@ public sealed class TrayMenuWindow : Window
 
         items.Children.Add(CreateActionItem(
             "重新发现并连接",
-            ReconnectIconGeometry,
+            DiscoverIconGeometry,
             _viewModel.ReconnectAllCommand.CanExecute(null),
             () => _viewModel.ReconnectAllCommand.Execute(null)));
 
@@ -232,7 +232,7 @@ public sealed class TrayMenuWindow : Window
         items.Children.Add(CreateSeparator());
 
         // HUD settings.
-        _cornerRow = CreateSubmenuTriggerItem("HUD 位置", CornerIconGeometry, CornerLabel(_viewModel.HudCorner));
+        _cornerRow = CreateSubmenuTriggerItem("HUD 位置", CornerIconFor(_viewModel.HudCorner), CornerLabel(_viewModel.HudCorner));
         items.Children.Add(_cornerRow);
 
         items.Children.Add(CreateToggleItem(
@@ -256,10 +256,10 @@ public sealed class TrayMenuWindow : Window
 
         return new Border
         {
-            MinWidth = 252,
-            MaxWidth = 296,
+            MinWidth = 238,
+            MaxWidth = 282,
             Margin = new Thickness(ShadowLeft, ShadowTop, ShadowRight, ShadowBottom),
-            Padding = new Thickness(4, 5, 4, 5),
+            Padding = new Thickness(5, 5, 5, 5),
             CornerRadius = new CornerRadius(8),
             Background = CardBackground,
             BorderBrush = CardBorderBrush,
@@ -269,12 +269,68 @@ public sealed class TrayMenuWindow : Window
         };
     }
 
+    private Border BuildDeviceSection()
+    {
+        var panel = new StackPanel
+        {
+            Orientation = Orientation.Vertical,
+            Spacing = 5
+        };
+
+        var header = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitions("*,Auto")
+        };
+
+        var title = new TextBlock
+        {
+            Text = _viewModel.Devices.Count == 0 ? "未连接设备" : "已连接设备",
+            FontFamily = FluentFont,
+            FontSize = 11,
+            Foreground = SecondaryTextBrush,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        Grid.SetColumn(title, 0);
+        header.Children.Add(title);
+
+        if (_viewModel.Devices.Count > 0)
+        {
+            var count = new TextBlock
+            {
+                Text = $"{_viewModel.ConnectedDeviceCount}/{_viewModel.Devices.Count}",
+                FontFamily = FluentFont,
+                FontSize = 11,
+                Foreground = SubtleCaptionBrush,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            Grid.SetColumn(count, 1);
+            header.Children.Add(count);
+        }
+
+        panel.Children.Add(header);
+
+        foreach (var device in _viewModel.Devices)
+        {
+            panel.Children.Add(BuildDeviceStatusRow(device));
+        }
+
+        return new Border
+        {
+            Background = DeviceCardBackground,
+            BorderBrush = DeviceCardBorderBrush,
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(6),
+            Margin = new Thickness(2, 2, 2, 6),
+            Padding = new Thickness(8, 7, 8, 7),
+            Child = panel
+        };
+    }
+
     private static Grid BuildDeviceStatusRow(DeviceTileViewModel device)
     {
         var grid = new Grid
         {
-            ColumnDefinitions = new ColumnDefinitions($"{IconColumnWidth},*,Auto"),
-            Margin = new Thickness(10, 3, 10, 4)
+            ColumnDefinitions = new ColumnDefinitions($"{IconColumnWidth},*,Auto")
         };
 
         var iconGeometry = device.Kind switch
@@ -293,10 +349,11 @@ public sealed class TrayMenuWindow : Window
             Text = FormatDeviceName(device.DeviceName),
             FontFamily = FluentFont,
             FontSize = 12.5,
+            FontWeight = FontWeight.Medium,
             Foreground = DeviceNameBrush,
             VerticalAlignment = VerticalAlignment.Center,
             TextTrimming = TextTrimming.CharacterEllipsis,
-            Margin = new Thickness(10, 0, 12, 0)
+            Margin = new Thickness(8, 0, 12, 0)
         };
         Grid.SetColumn(nameText, 1);
         grid.Children.Add(nameText);
@@ -310,15 +367,16 @@ public sealed class TrayMenuWindow : Window
 
         if (device.IsCharging)
         {
-            batteryPanel.Children.Add(CreateFilledIcon(ChargingBoltGeometry, DeviceIconBrush, 14));
+            batteryPanel.Children.Add(CreateFilledIcon(ChargingBoltGeometry, BatteryChargingBrush, 13));
         }
 
+        var batteryBrush = GetBatteryBrush(device);
         batteryPanel.Children.Add(new TextBlock
         {
             Text = device.BatteryText,
             FontFamily = FluentFont,
-            FontSize = 12.5,
-            Foreground = SecondaryTextBrush,
+            FontSize = 12,
+            Foreground = batteryBrush,
             VerticalAlignment = VerticalAlignment.Center
         });
 
@@ -326,6 +384,26 @@ public sealed class TrayMenuWindow : Window
         grid.Children.Add(batteryPanel);
 
         return grid;
+    }
+
+    private static IBrush GetBatteryBrush(DeviceTileViewModel device)
+    {
+        if (!device.IsConnected)
+        {
+            return SubtleCaptionBrush;
+        }
+
+        if (device.IsCharging)
+        {
+            return DeviceNameBrush;
+        }
+
+        return device.BatteryPercent switch
+        {
+            <= 10 => BatteryCriticalBrush,
+            <= 20 => BatteryLowBrush,
+            _ => BatteryNormalBrush
+        };
     }
 
     private Border CreateActionItem(string label, Geometry iconGeometry, bool isEnabled, Action onClick)
@@ -343,7 +421,7 @@ public sealed class TrayMenuWindow : Window
         {
             Text = label,
             FontFamily = FluentFont,
-            FontSize = 13,
+            FontSize = 12.5,
             Foreground = isEnabled ? PrimaryTextBrush : DisabledTextBrush,
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(10, 0, 4, 0)
@@ -376,7 +454,7 @@ public sealed class TrayMenuWindow : Window
         {
             Text = label,
             FontFamily = FluentFont,
-            FontSize = 13,
+            FontSize = 12.5,
             Foreground = PrimaryTextBrush,
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(10, 0, 4, 0)
@@ -406,7 +484,7 @@ public sealed class TrayMenuWindow : Window
         {
             Text = label,
             FontFamily = FluentFont,
-            FontSize = 13,
+            FontSize = 12.5,
             Foreground = PrimaryTextBrush,
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(10, 0, 12, 0)
@@ -418,10 +496,10 @@ public sealed class TrayMenuWindow : Window
         {
             Text = currentValueText,
             FontFamily = FluentFont,
-            FontSize = 12,
+            FontSize = 11.5,
             Foreground = SecondaryTextBrush,
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 8, 0)
+            Margin = new Thickness(0, 0, 6, 0)
         };
         Grid.SetColumn(currentText, 2);
         grid.Children.Add(currentText);
@@ -432,9 +510,9 @@ public sealed class TrayMenuWindow : Window
 
         var row = new Border
         {
-            Height = 32,
+            Height = MenuItemHeight,
             CornerRadius = new CornerRadius(4),
-            Padding = new Thickness(10, 0, 8, 0),
+            Padding = new Thickness(9, 0, 7, 0),
             Margin = new Thickness(0, 1),
             Background = Brushes.Transparent,
             Child = grid
@@ -481,9 +559,9 @@ public sealed class TrayMenuWindow : Window
     {
         var row = new Border
         {
-            Height = 32,
+            Height = MenuItemHeight,
             CornerRadius = new CornerRadius(4),
-            Padding = new Thickness(10, 0, 10, 0),
+            Padding = new Thickness(9, 0, 9, 0),
             Margin = new Thickness(0, 1),
             Background = Brushes.Transparent,
             Child = child
@@ -643,7 +721,7 @@ public sealed class TrayMenuWindow : Window
         {
             Height = 1,
             Background = SeparatorBrush,
-            Margin = new Thickness(0, 4, 0, 4)
+            Margin = new Thickness(4, 4, 4, 4)
         };
     }
 
@@ -710,6 +788,14 @@ public sealed class TrayMenuWindow : Window
 
         return trimmed;
     }
+
+    private static Geometry CornerIconFor(HudCorner corner) => corner switch
+    {
+        HudCorner.TopLeft => CornerTopLeftGeometry,
+        HudCorner.BottomRight => CornerBottomRightGeometry,
+        HudCorner.BottomLeft => CornerBottomLeftGeometry,
+        _ => CornerTopRightGeometry
+    };
 
     private static string CornerLabel(HudCorner corner) => corner switch
     {
@@ -785,9 +871,9 @@ public sealed class TrayMenuWindow : Window
 
             _card = new Border
             {
-                MinWidth = 148,
+                MinWidth = 136,
                 Margin = new Thickness(ShadowLeft, ShadowTop, ShadowRight, ShadowBottom),
-                Padding = new Thickness(4, 5, 4, 5),
+                Padding = new Thickness(5, 5, 5, 5),
                 CornerRadius = new CornerRadius(8),
                 Background = CardBackground,
                 BorderBrush = CardBorderBrush,
@@ -883,7 +969,7 @@ public sealed class TrayMenuWindow : Window
             {
                 Text = label,
                 FontFamily = FluentFont,
-                FontSize = 13,
+                FontSize = 12.5,
                 Foreground = PrimaryTextBrush,
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(10, 0, 8, 0)
@@ -893,9 +979,9 @@ public sealed class TrayMenuWindow : Window
 
             var row = new Border
             {
-                Height = 32,
+                Height = MenuItemHeight,
                 CornerRadius = new CornerRadius(4),
-                Padding = new Thickness(10, 0, 10, 0),
+                Padding = new Thickness(9, 0, 9, 0),
                 Margin = new Thickness(0, 1),
                 Background = Brushes.Transparent,
                 Child = grid
