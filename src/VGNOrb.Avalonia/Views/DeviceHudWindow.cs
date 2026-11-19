@@ -12,14 +12,18 @@ namespace VGNOrb.Avalonia.Views;
 
 public sealed class DeviceHudWindow : Window
 {
-    private const double CollapsedWidth = 76;
-    private const double CollapsedHeight = 48;
+    private const double CollapsedWidth = 40;
+    private const double CollapsedHeight = 20;
     private const double ExpandedWidth = 300;
+    private const double WindowHorizontalPadding = 36;
+    private const double WindowVerticalPadding = 28;
+    private const double CollapsedContentScale = 0.86;
 
     private readonly OrbViewModel _viewModel;
     private readonly Grid _root;
     private readonly Border _card;
     private readonly Grid _content;
+    private readonly ScaleTransform _contentScale;
     private readonly Canvas _singleCanvas;
     private readonly Canvas _dualCanvas;
     private readonly Grid _emptyState;
@@ -46,6 +50,7 @@ public sealed class DeviceHudWindow : Window
     private double _targetHeight;
     private double _startRootOpacity;
     private double _startContentOpacity;
+    private double _startContentScale = CollapsedContentScale;
     private Action? _hideCompleted;
 
     public DeviceHudWindow(OrbViewModel viewModel)
@@ -53,8 +58,8 @@ public sealed class DeviceHudWindow : Window
         _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
 
         Title = "VGN Orb";
-        Width = 320;
-        Height = 116;
+        Width = ExpandedWidth + WindowHorizontalPadding;
+        Height = _viewModel.HudHeight + WindowVerticalPadding;
         CanResize = false;
         WindowDecorations = global::Avalonia.Controls.WindowDecorations.None;
         Topmost = true;
@@ -95,9 +100,11 @@ public sealed class DeviceHudWindow : Window
             }
         };
 
+        _contentScale = new ScaleTransform(CollapsedContentScale, CollapsedContentScale);
         _content = new Grid
         {
             Opacity = 0,
+            RenderTransform = _contentScale,
             Children = { _singleCanvas, _dualCanvas, _emptyState }
         };
 
@@ -132,7 +139,7 @@ public sealed class DeviceHudWindow : Window
         UpdateContent();
     }
 
-    public double WindowHeight => _viewModel.HudHeight + 16;
+    public double WindowHeight => _viewModel.HudHeight + WindowVerticalPadding;
 
     /// <summary>
     /// Locks the spring sampling to the display refresh rate. With it disabled
@@ -160,11 +167,27 @@ public sealed class DeviceHudWindow : Window
     /// </summary>
     public void ApplyCorner(HudCorner corner)
     {
-        _card.HorizontalAlignment = HudPlacement.HorizontalAlignmentFor(corner);
-        _card.VerticalAlignment = HudPlacement.VerticalAlignmentFor(corner);
+        var horizontal = HudPlacement.HorizontalAlignmentFor(corner);
+        var vertical = HudPlacement.VerticalAlignmentFor(corner);
+
+        _card.HorizontalAlignment = horizontal;
+        _card.VerticalAlignment = vertical;
         _card.CornerRadius = HudPlacement.CardCornerRadius(corner);
 
-        var mirrored = !HudPlacement.IsRightSide(corner);
+        // Anchor the content layers to the docked corner so they expand cleanly
+        // out of the corner instead of drifting toward the center while clipping.
+        _singleCanvas.HorizontalAlignment = horizontal;
+        _singleCanvas.VerticalAlignment = vertical;
+        _dualCanvas.HorizontalAlignment = horizontal;
+        _dualCanvas.VerticalAlignment = vertical;
+        _emptyState.HorizontalAlignment = horizontal;
+        _emptyState.VerticalAlignment = vertical;
+
+        var onRight = HudPlacement.IsRightSide(corner);
+        var onBottom = HudPlacement.IsBottomSide(corner);
+        _content.RenderTransformOrigin = new RelativePoint(onRight ? 1 : 0, onBottom ? 1 : 0, RelativeUnit.Relative);
+
+        var mirrored = !onRight;
         _singleRow.SetMirrored(mirrored);
         _dualPrimaryRow.SetMirrored(mirrored);
         _dualSecondaryRow.SetMirrored(mirrored);
@@ -181,6 +204,7 @@ public sealed class DeviceHudWindow : Window
         _targetHeight = _viewModel.HudHeight;
         _startRootOpacity = _root.Opacity;
         _startContentOpacity = _content.Opacity;
+        _startContentScale = _contentScale.ScaleX;
         StartAnimation();
     }
 
@@ -196,6 +220,7 @@ public sealed class DeviceHudWindow : Window
         _targetHeight = CollapsedHeight;
         _startRootOpacity = _root.Opacity;
         _startContentOpacity = _content.Opacity;
+        _startContentScale = _contentScale.ScaleX;
         _hideCompleted = onCompleted;
         StartAnimation();
     }
@@ -219,6 +244,7 @@ public sealed class DeviceHudWindow : Window
         _card.Height = CollapsedHeight;
         _content.Opacity = 0;
         _root.Opacity = 0;
+        SetContentScale(CollapsedContentScale);
     }
 
     public void UpdateContent()
@@ -246,14 +272,19 @@ public sealed class DeviceHudWindow : Window
         }
     }
 
-    private const double ShowDurationMs = 600;
-    private const double HideDurationMs = 230;
-    private const double RootShowDurationMs = 80;
-    private const double ContentShowDelayMs = 110;
-    private const double ContentShowDurationMs = 220;
-    private const double ContentHideDurationMs = 90;
-    private const double RootHideDelayMs = 70;
-    private const double RootHideDurationMs = 150;
+    private const double ShowDurationMs = 580;
+    private const double HideDurationMs = 250;
+    private const double RootShowDurationMs = 65;
+    private const double ContentShowDelayMs = 55;
+    private const double ContentShowDurationMs = 180;
+    private const double ContentHideDurationMs = 105;
+    private const double RootHideDelayMs = 110;
+    private const double RootHideDurationMs = 140;
+    private const double ShowWidthOmega = 19.0;
+    private const double ShowWidthDamping = 0.60;
+    private const double ShowHeightOmega = 16.5;
+    private const double ShowHeightDamping = 0.56;
+    private const double HideBackAmplitude = 0.55;
     private const int VRefreshIndex = 116;
 
     private int FrameIntervalMilliseconds()
@@ -434,13 +465,17 @@ public sealed class DeviceHudWindow : Window
         if (_isHiding)
         {
             var sizeProgress = Math.Clamp(elapsed / HideDurationMs, 0, 1);
-            var sizeEase = BackEaseIn(sizeProgress, 0.25);
-            _card.Width = Lerp(_startWidth, _targetWidth, sizeEase);
-            _card.Height = Lerp(_startHeight, _targetHeight, sizeEase);
-            _content.Opacity = Lerp(
-                _startContentOpacity,
-                0,
-                QuadraticIn(Math.Clamp(elapsed / ContentHideDurationMs, 0, 1)));
+            // Slightly staggered X/Y BackEaseIn gives a brief elastic puff before
+            // snapping cleanly back into the corner.
+            var widthEase = BackEaseIn(sizeProgress, HideBackAmplitude);
+            var heightEase = BackEaseIn(Math.Clamp(sizeProgress * 1.06, 0, 1), HideBackAmplitude);
+            _card.Width = Math.Clamp(LerpUnclamped(_startWidth, _targetWidth, widthEase), 1, Width);
+            _card.Height = Math.Clamp(LerpUnclamped(_startHeight, _targetHeight, heightEase), 1, WindowHeight);
+
+            var contentHideProgress = QuadraticIn(Math.Clamp(elapsed / ContentHideDurationMs, 0, 1));
+            _content.Opacity = Lerp(_startContentOpacity, 0, contentHideProgress);
+            SetContentScale(Lerp(_startContentScale, CollapsedContentScale, contentHideProgress));
+
             _root.Opacity = elapsed < RootHideDelayMs
                 ? _startRootOpacity
                 : Lerp(
@@ -457,14 +492,19 @@ public sealed class DeviceHudWindow : Window
             _card.Height = _targetHeight;
             _root.Opacity = 0;
             _content.Opacity = 0;
+            SetContentScale(CollapsedContentScale);
             var completed = _hideCompleted;
             StopAnimation();
             completed?.Invoke();
             return;
         }
 
-        _card.Width = ShowSize(_startWidth, _targetWidth, elapsed, 7);
-        _card.Height = ShowSize(_startHeight, _targetHeight, elapsed, 5);
+        var elapsedSeconds = elapsed / 1000.0;
+        var widthSpring = DampedSpring(elapsedSeconds, ShowWidthOmega, ShowWidthDamping);
+        var heightSpring = DampedSpring(elapsedSeconds, ShowHeightOmega, ShowHeightDamping);
+        _card.Width = Math.Clamp(LerpUnclamped(_startWidth, _targetWidth, widthSpring), 1, Width);
+        _card.Height = Math.Clamp(LerpUnclamped(_startHeight, _targetHeight, heightSpring), 1, WindowHeight);
+
         _root.Opacity = Lerp(
             _startRootOpacity,
             1,
@@ -476,6 +516,9 @@ public sealed class DeviceHudWindow : Window
                 1,
                 QuadraticOut(Math.Clamp((elapsed - ContentShowDelayMs) / ContentShowDurationMs, 0, 1)));
 
+        var contentSpring = (widthSpring + heightSpring) * 0.5;
+        SetContentScale(LerpUnclamped(_startContentScale, 1.0, Math.Clamp(contentSpring, 0, 1.03)));
+
         if (elapsed < ShowDurationMs)
         {
             return;
@@ -485,7 +528,14 @@ public sealed class DeviceHudWindow : Window
         _card.Height = _targetHeight;
         _root.Opacity = 1;
         _content.Opacity = 1;
+        SetContentScale(1.0);
         StopAnimation();
+    }
+
+    private void SetContentScale(double scale)
+    {
+        _contentScale.ScaleX = scale;
+        _contentScale.ScaleY = scale;
     }
 
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -500,62 +550,22 @@ public sealed class DeviceHudWindow : Window
         UpdateContent();
     }
 
-    private static double ShowSize(double start, double target, double elapsed, double overshoot)
+    /// <summary>
+    /// Analytical underdamped harmonic oscillator (0 -> 1 with smooth physical
+    /// overshoot and settle), giving a Dynamic Island style elastic spring.
+    /// </summary>
+    private static double DampedSpring(double elapsedSeconds, double omega, double damping)
     {
-        var t = Math.Clamp(elapsed / ShowDurationMs, 0, 1);
-        if (t <= 0)
+        if (elapsedSeconds <= 0)
         {
-            return start;
+            return 0;
         }
 
-        if (t < 0.68)
-        {
-            return Lerp(
-                start,
-                target + overshoot,
-                CubicBezier(t / 0.68, 0.15, 0.85, 0.3, 1));
-        }
-
-        if (t < 0.84)
-        {
-            return Lerp(
-                target + overshoot,
-                target - 2,
-                CubicBezier((t - 0.68) / 0.16, 0.3, 0.7, 0.55, 1));
-        }
-
-        return Lerp(
-            target - 2,
-            target,
-            CubicBezier((t - 0.84) / 0.16, 0.4, 0.6, 0.7, 1));
-    }
-
-    private static double CubicBezier(double x, double x1, double y1, double x2, double y2)
-    {
-        x = Math.Clamp(x, 0, 1);
-
-        var low = 0d;
-        var high = 1d;
-        for (var i = 0; i < 24; i++)
-        {
-            var mid = (low + high) / 2;
-            var sample = 3 * (1 - mid) * (1 - mid) * mid * x1
-                + 3 * (1 - mid) * mid * mid * x2
-                + mid * mid * mid;
-            if (sample < x)
-            {
-                low = mid;
-            }
-            else
-            {
-                high = mid;
-            }
-        }
-
-        var u = (low + high) / 2;
-        return 3 * (1 - u) * (1 - u) * u * y1
-            + 3 * (1 - u) * u * u * y2
-            + u * u * u;
+        var root = Math.Sqrt(1 - damping * damping);
+        var wd = omega * root;
+        var decay = Math.Exp(-damping * omega * elapsedSeconds);
+        return 1 - decay * (Math.Cos(wd * elapsedSeconds)
+            + (damping / root) * Math.Sin(wd * elapsedSeconds));
     }
 
     private static double QuadraticOut(double t)
@@ -580,5 +590,10 @@ public sealed class DeviceHudWindow : Window
     private static double Lerp(double from, double to, double t)
     {
         return from + (to - from) * Math.Clamp(t, 0, 1);
+    }
+
+    private static double LerpUnclamped(double from, double to, double t)
+    {
+        return from + (to - from) * t;
     }
 }

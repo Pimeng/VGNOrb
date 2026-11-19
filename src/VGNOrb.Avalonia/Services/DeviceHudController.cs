@@ -16,7 +16,6 @@ public sealed class DeviceHudController : IDisposable
     private const int WsExTransparent = 0x00000020;
     private const int WsExToolWindow = 0x00000080;
     private const int WsExNoActivate = 0x08000000;
-    private const double HudWindowEdgePadding = 16;
     private const double HotSpotSize = 20;
     private static readonly TimeSpan HideDelay = TimeSpan.FromMilliseconds(350);
 
@@ -50,7 +49,7 @@ public sealed class DeviceHudController : IDisposable
 
         _viewModel.Devices.CollectionChanged += OnDevicesCollectionChanged;
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
-        _hud.Height = _viewModel.HudHeight + HudWindowEdgePadding;
+        _hud.Height = _hud.WindowHeight;
     }
 
     public void Start()
@@ -112,7 +111,6 @@ public sealed class DeviceHudController : IDisposable
 
     private void OnDevicesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
-        _hud.Height = _viewModel.HudHeight + HudWindowEdgePadding;
         _hud.RefreshWindowHeight();
         _hud.UpdateContent();
         PositionWindows();
